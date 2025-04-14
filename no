@@ -1,0 +1,42 @@
+local player = game.Players.LocalPlayer
+
+local banditPosition = Vector3.new(1061.66699, 16.5166187, 1544.52905)
+local junglePosition1 = Vector3.new(-1604.12012, 36.8521118, 154.23732)
+local junglePosition2 = Vector3.new(-1200.4417724609375, 8.02769660949707, -449.0584716796875)
+
+local tolerance = 10
+
+while task.wait(1) do
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local hrp = character.HumanoidRootPart
+        local pos = hrp.Position
+
+        if (pos - banditPosition).Magnitude <= tolerance then
+            local args = {
+                [1] = "StartQuest",
+                [2] = "BanditQuest1",
+                [3] = 1
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+        end
+
+        if (pos - junglePosition1).Magnitude <= tolerance then
+            local args = {
+                [1] = "StartQuest",
+                [2] = "JungleQuest",
+                [3] = 1
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+        end
+
+        if (pos - junglePosition2).Magnitude <= tolerance then
+            local args = {
+                [1] = "StartQuest",
+                [2] = "JungleQuest",
+                [3] = 2
+            }
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(args))
+        end
+    end
+end
