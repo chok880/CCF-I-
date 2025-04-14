@@ -1,0 +1,62 @@
+local player = game.Players.LocalPlayer  
+local character = player.Character or player.CharacterAdded:Wait()  
+local charHRP = character:WaitForChild("HumanoidRootPart")  
+
+local TweenService = game:GetService("TweenService")  
+local flightSpeed = 0.5  
+
+-- ฟังก์ชันหา Enemy ตามเลเวล
+local function findClosestEnemyByLevel(level)
+    local closestEnemy = nil  
+    local minDistance = math.huge  
+
+    for _, enemy in ipairs(workspace.Enemies:GetChildren()) do  
+        local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")  
+        local enemyHumanoid = enemy:FindFirstChild("Humanoid")  
+
+        if enemyHRP and enemyHumanoid and enemyHumanoid.Health > 0 then  
+            if (level <= 9 and enemy.Name == "Bandit")  
+            or (level >= 10 and level <= 14 and enemy.Name == "Monkey")  
+            or (level >= 15 and level <= 29 and enemy.Name == "Gorilla")  
+            or (level >= 30 and level <= 39 and enemy.Name == "Pirate") then  
+                local distance = (charHRP.Position - enemyHRP.Position).Magnitude  
+                if distance < minDistance then  
+                    minDistance = distance  
+                    closestEnemy = enemy  
+                end  
+            end  
+        end  
+    end  
+
+    return closestEnemy  
+end  
+
+local function flyToTarget(targetPosition)  
+    if not charHRP then return end  
+    local targetCFrame = CFrame.new(targetPosition + Vector3.new(0, 10, 0))  
+    local tweenInfo = TweenInfo.new(flightSpeed, Enum.EasingStyle.Linear)  
+    local tween = TweenService:Create(charHRP, tweenInfo, {CFrame = targetCFrame})  
+    tween:Play()  
+end  
+
+-- ระบบอัตโนมัติ
+task.spawn(function()  
+    while true do  
+        local questGUI = player:WaitForChild("PlayerGui"):WaitForChild("Main"):WaitForChild("Quest")  
+
+        if questGUI.Visible then  -- เช็คว่าเปิดเควสอยู่ไหม  
+            local MyLevel = player:WaitForChild("Data"):WaitForChild("Level").Value  
+            if MyLevel <= 39 then  
+                local enemy = findClosestEnemyByLevel(MyLevel)  
+                if enemy then  
+                    local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")  
+                    if enemyHRP then  
+                        flyToTarget(enemyHRP.Position)  
+                    end  
+                end  
+            end  
+        end  
+
+        task.wait(0.5)  
+    end  
+end)
