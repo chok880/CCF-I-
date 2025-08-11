@@ -65,7 +65,7 @@ main:Toggle("📍 ระบบวาร์ปกลับตำแหน่ง�
         local startPos = Char.HumanoidRootPart.Position
         while _G.AutoReturn do
             task.wait(0.2)
-            if (Char.HumanoidRootPart.Position - startPos).Magnitude > 1.02 then
+            if (Char.HumanoidRootPart.Position - startPos).Magnitude > 0.02 then
                 Char.HumanoidRootPart.CFrame = CFrame.new(startPos)
             end
         end
