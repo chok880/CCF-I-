@@ -22,16 +22,19 @@ local main = serv:Channel("เมนูหลัก")
 
 
 
-main:Toggle("🎣ตกปลาอัตโนมัติ", false, function(v)
+main:Toggle("🎯⚡🎣 โหมดตกปลาอัตโนมัติแบบครบวงจร", false, function(v)
     _G.AutoFishAll = v
     pcall(function()
         while _G.AutoFishAll do
-            task.wait(0.01)
+            task.wait(0.1)
+
             -- AutoCast
             local Rod = Char:FindFirstChildOfClass("Tool")
             if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
-                Rod.events.cast:FireServer(100,1)
+                -- ส่งครบ 6 arguments ตามที่เกมต้องการ
+                Rod.events.cast:FireServer(100, 1, false, Vector3.new(0,0,0), tick(), "Auto")
             end
+
             -- AutoShake
             local shakeUI = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
             if shakeUI and shakeUI.Enabled then
@@ -45,13 +48,16 @@ main:Toggle("🎣ตกปลาอัตโนมัติ", false, function(v)
                     end
                 end
             end
+
             -- AutoReel
-            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
-                    task.wait(0.001)
-                    ReplicatedStorage.events.reelfinished:FireServer(100,true)
-                end
-            end
+for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+    if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
+        -- ไม่มีดีเลย์เพื่อความเร็วสูงสุด
+        ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.new(0,0,0), tick(), "Auto")
+    end
+end
+
+
             -- Auto Equip Rod
             for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
                 if tool:IsA("Tool") and tool.Name:lower():find("rod") then
@@ -60,7 +66,8 @@ main:Toggle("🎣ตกปลาอัตโนมัติ", false, function(v)
             end
         end
     end)
-end)                                     ทำให้เร็ว
+end)
+
 
 
 main:Toggle("📍 ระบบวาร์ปกลับตำแหน่งเดิม", false, function(v)
