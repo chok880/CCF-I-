@@ -24,21 +24,14 @@ local main = serv:Channel("เมนูหลัก")
 
 main:Toggle("🎣ตกปลาอัตโนมัติ", false, function(v)
     _G.AutoFishAll = v
-    if v then
-        -- ใช้ RunService.Heartbeat แทน task.wait เพื่อให้ทำงานทุกเฟรม
-        local connection
-        connection = RunService.Heartbeat:Connect(function()
-            if not _G.AutoFishAll then
-                connection:Disconnect()
-                return
-            end
-
+    pcall(function()
+        while _G.AutoFishAll do
+            task.wait(0.01)
             -- AutoCast
             local Rod = Char:FindFirstChildOfClass("Tool")
             if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
                 Rod.events.cast:FireServer(100,1)
             end
-
             -- AutoShake
             local shakeUI = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
             if shakeUI and shakeUI.Enabled then
@@ -52,23 +45,22 @@ main:Toggle("🎣ตกปลาอัตโนมัติ", false, function(v)
                     end
                 end
             end
-
             -- AutoReel
-            local reelGui = LocalPlayer.PlayerGui:FindFirstChild("reel")
-            if reelGui and reelGui:FindFirstChild("bar") then
-                ReplicatedStorage.events.reelfinished:FireServer(100,true)
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
+                    task.wait(0.001)
+                    ReplicatedStorage.events.reelfinished:FireServer(100,true)
+                end
             end
-
             -- Auto Equip Rod
             for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
                 if tool:IsA("Tool") and tool.Name:lower():find("rod") then
                     equipitem(tool.Name)
-                    break -- ใส่ break เพื่อไม่ให้วนเยอะเกินความจำเป็น
                 end
             end
-        end)
-    end
-end)
+        end
+    end)
+end)                                     ทำให้เร็ว
 
 
 main:Toggle("📍 ระบบวาร์ปกลับตำแหน่งเดิม", false, function(v)
