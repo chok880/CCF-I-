@@ -1,7 +1,24 @@
--- ตรวจสอบว่า PlaceId ตรงกับที่กำหนด
-if game.PlaceId == 16732694052 then
-    -- โหลดและรันสคริปต์จาก URL
+-- ตรวจสอบ PlaceId ปัจจุบันก่อน
+print("กำลังตรวจสอบ PlaceId:", game.PlaceId)
+
+-- PlaceId ที่เป็นไปได้สำหรับ Fisch
+local fischPlaceIds = {
+    131716211654599,
+    -- เพิ่ม PlaceId อื่นๆ ที่เป็นไปได้
+}
+
+local function isInFisch()
+    for _, placeId in pairs(fischPlaceIds) do
+        if game.PlaceId == placeId then
+            return true
+        end
+    end
+    return false
+end
+
+if isInFisch() then
+    print("พบเกม Fisch! กำลังโหลดสคริปต์...")
     loadstring(game:HttpGet("https://raw.githubusercontent.com/chok880/CCF-I-/main/Fisch%20Script", true))()
 else
-    print("ไม่ใช่แมพที่กำหนด ไม่โหลดสคริปต์")
+    warn("PlaceId ปัจจุบัน:", game.PlaceId, "ไม่ใช่เกม Fisch")
 end
