@@ -7,21 +7,27 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 
+-- อัปเดตตัวละครอัตโนมัติ
+LocalPlayer.CharacterAdded:Connect(function(c)
+    Char = c
+    Humanoid = Char:WaitForChild("Humanoid")
+end)
+
 local function equipitem(v)
     if LocalPlayer.Backpack:FindFirstChild(v) then
         Humanoid:EquipTool(LocalPlayer.Backpack[v])
     end
 end
 
+-- โหลด Discord UI
 local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/discord"))()
 local win = DiscordLib:Window("CHOK HUB 🎣")
 local serv = win:Server("สคริปต์ตกปลา Fisch", "")
 
 local main = serv:Channel("เมนูหลัก")
 
-
-
-
+------------------------------------------------
+-- 🎯⚡🎣 Auto Fish
 main:Toggle("🎯⚡🎣 ปลาอัตโนมัติ", false, function(v)
     _G.AutoFishAll = v
     pcall(function()
@@ -31,7 +37,6 @@ main:Toggle("🎯⚡🎣 ปลาอัตโนมัติ", false, function(
             -- AutoCast
             local Rod = Char:FindFirstChildOfClass("Tool")
             if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
-                -- ส่งครบ 6 arguments ตามที่เกมต้องการ
                 Rod.events.cast:FireServer(100, 1, false, Vector3.new(0,0,0), tick(), "Auto")
             end
 
@@ -50,13 +55,11 @@ main:Toggle("🎯⚡🎣 ปลาอัตโนมัติ", false, function(
             end
 
             -- AutoReel
-for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
-    if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
-        
-        ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.new(0,0,0), tick(), "Auto")
-    end
-end
-
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
+                    ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.new(0,0,0), tick(), "Auto")
+                end
+            end
 
             -- Auto Equip Rod
             for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
@@ -68,9 +71,9 @@ end
     end)
 end)
 
-
-
-main:Toggle("📍 ยื่นหหนิ่ง", false, function(v)
+------------------------------------------------
+-- 📍 ยืนที่เดิม
+main:Toggle("📍 ยืนที่เดิม", false, function(v)
     _G.AutoReturn = v
     if v then
         local startPos = Char.HumanoidRootPart.Position
@@ -83,12 +86,13 @@ main:Toggle("📍 ยื่นหหนิ่ง", false, function(v)
     end
 end)
 
+------------------------------------------------
+-- ⏳ Anti AFK
 main:Toggle("⏳ ป้องกัน AFK (Anti AFK)", false, function(v)
     _G.AntiAFK = v
     if v then
         spawn(function()
             while _G.AntiAFK do
-              
                 VirtualInputManager:SendMouseButtonEvent(0,0,true,game)
                 task.wait(0.1)
                 VirtualInputManager:SendMouseButtonEvent(0,0,false,game)
@@ -97,10 +101,41 @@ main:Toggle("⏳ ป้องกัน AFK (Anti AFK)", false, function(v)
     end
 end)
 
+------------------------------------------------
+-- 🚀 วาปไปเกาะต่าง ๆ
+local warp = serv:Channel("วาป")
+warp:Label("เลือกเกาะแล้วกดปุ่มเพื่อวาป")
+
+-- 🗺 ใส่พิกัดจริงที่คุณได้จากสคริปต์ดึงพิกัด
+local Islands = {
+    ["🏝 เกาะเริ่มต้น"] = CFrame.new(0, 10, 0), -- ใส่พิกัดจริง
+    ["🌴 เกาะป่า"] = CFrame.new(500, 15, 300), -- ใส่พิกัดจริง
+    ["❄️ เกาะน้ำแข็ง"] = CFrame.new(-800, 20, 1200), -- ใส่พิกัดจริง
+    ["🌋 เกาะภูเขาไฟ"] = CFrame.new(1500, 25, -400), -- ใส่พิกัดจริง
+    ["🐉 เกาะลับ"] = CFrame.new(-2000, 30, -1800) -- ใส่พิกัดจริง
+}
+
+local selectedIsland = nil
+warp:Dropdown("เลือกเกาะ", table.keys(Islands), function(v)
+    selectedIsland = v
+end)
+
+warp:Button("🚀 วาปไปเกาะ", function()
+    if selectedIsland and Islands[selectedIsland] and Char and Char:FindFirstChild("HumanoidRootPart") then
+        Char.HumanoidRootPart.CFrame = Islands[selectedIsland]
+    end
+end)
+
+------------------------------------------------
+-- เครดิต
 local credit = serv:Channel("เครดิต")
 credit:Label("💻 สคริปต์โดย CHOK HUB")
-credit:Button("รออัปเดตวาปเกาะต่างๆ", function()
+credit:Button("ปิดเมนู", function()
     DiscordLib:Close()
 end)
-local credit = serv:Channel("วาป")
-credit:Label("รออัปเดต")
+
+------------------------------------------------
+-- ปิด log
+hookfunction(print, function(...) return "" end)
+hookfunction(warn, function(...) return "" end)
+hookfunction(error, function(...) return "" end)
