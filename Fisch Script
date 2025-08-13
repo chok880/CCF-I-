@@ -1,1 +1,106 @@
+local Player = game:GetService("Players")
+local LocalPlayer = Player.LocalPlayer
+local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Char:WaitForChild("Humanoid")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
 
+local function equipitem(v)
+    if LocalPlayer.Backpack:FindFirstChild(v) then
+        Humanoid:EquipTool(LocalPlayer.Backpack[v])
+    end
+end
+
+local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/discord"))()
+local win = DiscordLib:Window("CHOK HUB 🎣")
+local serv = win:Server("สคริปต์ตกปลา Fisch", "")
+
+local main = serv:Channel("เมนูหลัก")
+
+
+
+
+main:Toggle("🎯⚡🎣 ปลาอัตโนมัติ", false, function(v)
+    _G.AutoFishAll = v
+    pcall(function()
+        while _G.AutoFishAll do
+            task.wait(0.1)
+
+            -- AutoCast
+            local Rod = Char:FindFirstChildOfClass("Tool")
+            if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
+                -- ส่งครบ 6 arguments ตามที่เกมต้องการ
+                Rod.events.cast:FireServer(100, 1, false, Vector3.new(0,0,0), tick(), "Auto")
+            end
+
+            -- AutoShake
+            local shakeUI = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
+            if shakeUI and shakeUI.Enabled then
+                local safezone = shakeUI:FindFirstChild("safezone")
+                if safezone then
+                    local button = safezone:FindFirstChild("button")
+                    if button and button:IsA("ImageButton") and button.Visible then
+                        GuiService.SelectedObject = button
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+                    end
+                end
+            end
+
+            -- AutoReel
+for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
+    if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
+        
+        ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.new(0,0,0), tick(), "Auto")
+    end
+end
+
+
+            -- Auto Equip Rod
+            for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
+                if tool:IsA("Tool") and tool.Name:lower():find("rod") then
+                    equipitem(tool.Name)
+                end
+            end
+        end
+    end)
+end)
+
+
+
+main:Toggle("📍 ยื่นหหนิ่ง", false, function(v)
+    _G.AutoReturn = v
+    if v then
+        local startPos = Char.HumanoidRootPart.Position
+        while _G.AutoReturn do
+            task.wait(0.2)
+            if (Char.HumanoidRootPart.Position - startPos).Magnitude > 0.02 then
+                Char.HumanoidRootPart.CFrame = CFrame.new(startPos)
+            end
+        end
+    end
+end)
+
+main:Toggle("⏳ ป้องกัน AFK (Anti AFK)", false, function(v)
+    _G.AntiAFK = v
+    if v then
+        spawn(function()
+            while _G.AntiAFK do
+              
+                VirtualInputManager:SendMouseButtonEvent(0,0,true,game)
+                task.wait(0.1)
+                VirtualInputManager:SendMouseButtonEvent(0,0,false,game)
+            end
+        end)
+    end
+end)
+
+local credit = serv:Channel("เครดิต")
+credit:Label("💻 สคริปต์โดย CHOK HUB")
+credit:Button("รออัปเดตวาปเกาะต่างๆ", function()
+    DiscordLib:Close()
+end)
+local credit = serv:Channel("วาป")
+credit:Label("รออัปเดต")
