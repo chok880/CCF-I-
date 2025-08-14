@@ -1,141 +1,192 @@
-local Player = game:GetService("Players")
-local LocalPlayer = Player.LocalPlayer
+-- 📌 ตั้งค่าพื้นฐาน
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
 local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Char:WaitForChild("Humanoid")
 local VirtualInputManager = game:GetService("VirtualInputManager")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GuiService = game:GetService("GuiService")
-local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- อัปเดตตัวละครอัตโนมัติ
-LocalPlayer.CharacterAdded:Connect(function(c)
-    Char = c
-    Humanoid = Char:WaitForChild("Humanoid")
-end)
+-- โหลด Luna UI
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
 
-local function equipitem(v)
-    if LocalPlayer.Backpack:FindFirstChild(v) then
-        Humanoid:EquipTool(LocalPlayer.Backpack[v])
-    end
-end
+local Window = Luna:CreateWindow({
+    Name = "CHOK HUB 🎣",
+    Subtitle = "Fishing Script",
+    LoadingEnabled = true,
+    LoadingTitle = "CHOK HUB",
+    LoadingSubtitle = "by Nebula Softworks",
+    ConfigSettings = {
+        ConfigFolder = "CHOK HUB Config"
+    },
+    KeySystem = false
+})
 
--- โหลด Discord UI
-local DiscordLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/bloodball/-back-ups-for-libs/main/discord"))()
-local win = DiscordLib:Window("CHOK HUB 🎣")
-local serv = win:Server("สคริปต์ตกปลา Fisch", "")
+Window:CreateHomeTab({
+    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
+    Icon = 1
+})
 
-local main = serv:Channel("เมนูหลัก")
+local Tab_Main = Window:CreateTab({
+    Name = "เมนูหลัก",
+    Icon = "view_in_ar",
+    ImageSource = "Material"
+})
 
-------------------------------------------------
--- 🎯⚡🎣 Auto Fish
-main:Toggle("🎯⚡🎣 ปลาอัตโนมัติ", false, function(v)
-    _G.AutoFishAll = v
-    pcall(function()
-        while _G.AutoFishAll do
-            task.wait(0.1)
+------------------------------------------------------------
+-- 🐟 Auto Fish
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "🎯⚡🎣 ปลาอัตโนมัติ",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoFishAll = state
+        task.spawn(function()
+            while _G.AutoFishAll and task.wait(0.1) do
+                if not Char or not Char.Parent then break end
 
-            -- AutoCast
-            local Rod = Char:FindFirstChildOfClass("Tool")
-            if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
-                Rod.events.cast:FireServer(100, 1, false, Vector3.new(0,0,0), tick(), "Auto")
-            end
+                -- AutoCast
+                local Rod = Char:FindFirstChildOfClass("Tool")
+                if Rod and Rod:FindFirstChild("events") and Rod.events:FindFirstChild("cast") then
+                    Rod.events.cast:FireServer(100, 1, false, Vector3.zero, tick(), "Auto")
+                end
 
-            -- AutoShake
-            local shakeUI = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
-            if shakeUI and shakeUI.Enabled then
-                local safezone = shakeUI:FindFirstChild("safezone")
-                if safezone then
-                    local button = safezone:FindFirstChild("button")
+                -- AutoShake
+                local shakeUI = LocalPlayer.PlayerGui:FindFirstChild("shakeui")
+                if shakeUI and shakeUI.Enabled then
+                    local safezone = shakeUI:FindFirstChild("safezone")
+                    local button = safezone and safezone:FindFirstChild("button")
                     if button and button:IsA("ImageButton") and button.Visible then
                         GuiService.SelectedObject = button
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
                     end
                 end
-            end
 
-            -- AutoReel
-            for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
-                    ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.new(0,0,0), tick(), "Auto")
+                -- AutoReel
+                for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
+                    if gui:IsA("ScreenGui") and gui.Name == "reel" and gui:FindFirstChild("bar") then
+                        ReplicatedStorage.events.reelfinished:FireServer(100, true, false, Vector3.zero, tick(), "Auto")
+                    end
                 end
-            end
 
-            -- Auto Equip Rod
-            for _, tool in pairs(LocalPlayer.Backpack:GetChildren()) do
-                if tool:IsA("Tool") and tool.Name:lower():find("rod") then
-                    equipitem(tool.Name)
+                -- Auto Equip Rod
+                for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+                    if tool:IsA("Tool") and tool.Name:lower():find("rod") then
+                        LocalPlayer.Character.Humanoid:EquipTool(tool)
+                    end
                 end
-            end
-        end
-    end)
-end)
-
-------------------------------------------------
--- 📍 ยืนที่เดิม
-main:Toggle("📍 ยืนที่เดิม", false, function(v)
-    _G.AutoReturn = v
-    if v then
-        local startPos = Char.HumanoidRootPart.Position
-        while _G.AutoReturn do
-            task.wait(0.2)
-            if (Char.HumanoidRootPart.Position - startPos).Magnitude > 0.02 then
-                Char.HumanoidRootPart.CFrame = CFrame.new(startPos)
-            end
-        end
-    end
-end)
-
-------------------------------------------------
--- ⏳ Anti AFK
-main:Toggle("⏳ ป้องกัน AFK (Anti AFK)", false, function(v)
-    _G.AntiAFK = v
-    if v then
-        spawn(function()
-            while _G.AntiAFK do
-                VirtualInputManager:SendMouseButtonEvent(0,0,true,game)
-                task.wait(0.1)
-                VirtualInputManager:SendMouseButtonEvent(0,0,false,game)
             end
         end)
     end
-end)
+})
 
-------------------------------------------------
--- 🚀 วาปไปเกาะต่าง ๆ
-local warp = serv:Channel("วาป")
-warp:Label("เลือกเกาะแล้วกดปุ่มเพื่อวาป")
-
--- 🗺 ใส่พิกัดจริงที่คุณได้จากสคริปต์ดึงพิกัด
-local Islands = {
-    ["🏝 เกาะเริ่มต้น"] = CFrame.new(0, 10, 0), -- ใส่พิกัดจริง
-    ["🌴 เกาะป่า"] = CFrame.new(500, 15, 300), -- ใส่พิกัดจริง
-    ["❄️ เกาะน้ำแข็ง"] = CFrame.new(-800, 20, 1200), -- ใส่พิกัดจริง
-    ["🌋 เกาะภูเขาไฟ"] = CFrame.new(1500, 25, -400), -- ใส่พิกัดจริง
-    ["🐉 เกาะลับ"] = CFrame.new(-2000, 30, -1800) -- ใส่พิกัดจริง
-}
-
-local selectedIsland = nil
-warp:Dropdown("เลือกเกาะ", table.keys(Islands), function(v)
-    selectedIsland = v
-end)
-
-warp:Button("🚀 วาปไปเกาะ", function()
-    if selectedIsland and Islands[selectedIsland] and Char and Char:FindFirstChild("HumanoidRootPart") then
-        Char.HumanoidRootPart.CFrame = Islands[selectedIsland]
+------------------------------------------------------------
+-- 📍 ยืนที่เดิม
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "📍 ยืนที่เดิม",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoReturn = state
+        if state then
+            local startPos = Char.HumanoidRootPart.Position
+            local startCFrame = Char.HumanoidRootPart.CFrame -- เก็บทั้งตำแหน่งและทิศทาง
+            task.spawn(function()
+                while _G.AutoReturn and task.wait(0.2) do
+                    if not Char or not Char.Parent then break end
+                    -- เช็คทั้งตำแหน่งและทิศทาง
+                    local currentPos = Char.HumanoidRootPart.Position
+                    local currentCFrame = Char.HumanoidRootPart.CFrame
+                    
+                    if (currentPos - startPos).Magnitude > 0.02 or 
+                       math.abs(currentCFrame.LookVector:Dot(startCFrame.LookVector)) < 0.98 then
+                        Char.HumanoidRootPart.CFrame = startCFrame -- คืนทั้งตำแหน่งและทิศทาง
+                    end
+                end
+            end)
+        end
     end
-end)
+})
 
-------------------------------------------------
--- เครดิต
-local credit = serv:Channel("เครดิต")
-credit:Label("💻 สคริปต์โดย CHOK HUB")
-credit:Button("ปิดเมนู", function()
-    DiscordLib:Close()
-end)
+------------------------------------------------------------
+-- ⏳ Anti AFK
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "⏳ ป้องกัน AFK",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AntiAFK = state
+        if state then
+            task.spawn(function()
+                while _G.AntiAFK and task.wait(60) do
+                    -- ส่ง input เพื่อป้องกัน AFK
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+                end
+            end)
+        end
+    end
+})
 
-------------------------------------------------
--- ปิด log
-hookfunction(print, function(...) return "" end)
-hookfunction(warn, function(...) return "" end)
-hookfunction(error, function(...) return "" end)
+------------------------------------------------------------
+-- 🚀 Auto Sell Fish
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "🚀 ขายปลาอัตโนมัติ",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoSell = state
+        if state then
+            task.spawn(function()
+                while _G.AutoSell and task.wait(5) do
+                    -- หา NPC ขายปลา
+                    local sellNPC = workspace:FindFirstChild("SellNPC") or workspace:FindFirstChild("FishSeller")
+                    if sellNPC then
+                        -- เดินไปหา NPC
+                        local humanoid = Char:FindFirstChild("Humanoid")
+                        if humanoid then
+                            humanoid:MoveTo(sellNPC.Position)
+                            task.wait(2)
+                            
+                            -- ขายปลา
+                            if ReplicatedStorage:FindFirstChild("events") and ReplicatedStorage.events:FindFirstChild("sell") then
+                                ReplicatedStorage.events.sell:FireServer()
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 💳 เครดิต
+------------------------------------------------------------
+local Tab_Credit = Window:CreateTab({
+    Name = "เครดิต",
+    Icon = "info",
+    ImageSource = "Material"
+})
+
+Tab_Credit:CreateLabel({
+    Text = "💻 Script by CHOK HUB",
+    Style = 1
+})
+
+Tab_Credit:CreateLabel({
+    Text = "🎣 Fishing Automation Script",
+    Style = 2
+})
+
+Tab_Credit:CreateLabel({
+    Text = "⚡ แก้ไขและปรับปรุงแล้ว",
+    Style = 2
+})
+
+-- 📌 เพิ่มฟังก์ชันสำหรับอัพเดท Character เมื่อ Respawn
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    task.wait(1) -- รอให้ Character โหลดเสร็จ
+end)
