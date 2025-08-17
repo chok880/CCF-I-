@@ -1,0 +1,101 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local fillText = player.PlayerGui.ToolUI.FillingPan.FillText
+
+-- เก็บตำแหน่งเริ่มต้น
+local startPosition = player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart.Position
+
+-- ฟังก์ชันวาป
+local function warpTo(position)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = CFrame.new(position)
+        print("Warped to:", position)
+    end
+end
+
+-- ฟังก์ชันเช็คหลอดและวาป
+local function checkAndWarp()
+    local text = fillText.Text -- เช่น "3/5"
+    local current, max = text:match("(%d+)/(%d+)")
+    
+    if current and max then
+        current = tonumber(current)
+        max = tonumber(max)
+        
+        if current >= max then
+            warpTo(Vector3.new(-90.1818, 9, 26.5255)) -- หลอดเต็ม
+        elseif current <= 0 and startPosition then
+            warpTo(startPosition) -- หลอดว่าง
+        end
+    end
+end
+
+-- ฟังก์ชันเปลี่ยน startPosition
+local function setStartPosition()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        startPosition = hrp.Position
+        -- แจ้งเตือนผู้เล่น
+        if player.PlayerGui:FindFirstChild("MessageGui") == nil then
+            local msg = Instance.new("Message")
+            msg.Name = "MessageGui"
+            msg.Text = "ตำแหน่งเริ่มต้นถูกบันทึกแล้ว!"
+            msg.Parent = player.PlayerGui
+            task.delay(2, function() msg:Destroy() end) -- 2 วินาทีแล้วหายไป
+        end
+        print("New startPosition set:", startPosition)
+    end
+end
+
+-- ตรวจปุ่มกด C
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
+        setStartPosition()
+    end
+end)
+
+-- ลูป Auto Farm + Warp + Pan + Shake
+task.spawn(function()
+    while true do
+        local character = player.Character
+        if character then
+            -- Plastic Pan
+            local plasticPan = character:FindFirstChild("Plastic Pan")
+            if plasticPan then
+                local scripts = plasticPan:FindFirstChild("Scripts")
+                if scripts then
+                    if scripts:FindFirstChild("Pan") then
+                        scripts.Pan:InvokeServer()
+                    end
+                    if scripts:FindFirstChild("Shake") then
+                        scripts.Shake:FireServer()
+                    end
+                end
+            end
+
+            -- Silver Pan
+            local silverPan = character:FindFirstChild("Silver Pan")
+            if silverPan then
+                local scripts = silverPan:FindFirstChild("Scripts")
+                if scripts then
+                    if scripts:FindFirstChild("Pan") then
+                        scripts.Pan:InvokeServer()
+                    end
+                    if scripts:FindFirstChild("Shake") then
+                        scripts.Shake:FireServer()
+                    end
+                    if scripts:FindFirstChild("Collect") then
+                        scripts.Collect:InvokeServer(1)
+                    end
+                end
+            end
+
+            -- ตรวจเช็คหลอดและวาป
+            checkAndWarp()
+        end
+
+        task.wait(0.2)
+    end
+end)
