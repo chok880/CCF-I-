@@ -1,0 +1,178 @@
+-- 📌 ตั้งค่าพื้นฐาน
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+local Char = player.Character or player.CharacterAdded:Wait()
+
+-- เก็บตำแหน่งเริ่มต้น
+local startPosition = nil
+local autoFarmEnabled = false
+local walkSpeed = 16 -- ค่าเริ่มต้นปกติ
+
+-- ฟังก์ชันวาป
+local function warpTo(position)
+    if not position then return end
+    local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        hrp = Char and Char:WaitForChild("HumanoidRootPart", 5)
+        if not hrp then return end
+    end
+    pcall(function()
+        hrp.CFrame = CFrame.new(position)
+    end)
+    task.wait(0.1)
+end
+
+-- โหลด Luna UI
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
+
+local Window = Luna:CreateWindow({
+    Name = "Ck Hub",
+    Subtitle = "by CHOK",
+    LoadingEnabled = true
+})
+
+-- สร้าง Tab
+local FarmTab = Window:CreateTab({
+    Name = "Farm",
+    Icon = "view_in_ar",
+    ImageSource = "Material"
+})
+
+-- ฟังก์ชันช่วยสร้าง Label
+local posLabel = FarmTab:CreateLabel({
+    Text = "ตำแหน่งที่จำ: ยังไม่ได้บันทึก",
+    Style = 2
+})
+
+-- Toggle Auto Farm
+FarmTab:CreateToggle({
+    Name = "Auto Farm",
+    CurrentValue = false,
+    Callback = function(state)
+        autoFarmEnabled = state
+    end
+})
+
+-- ปุ่มบันทึกตำแหน่ง (ถ้าต้องการ)
+FarmTab:CreateButton({
+    Name = "บันทึกตำแหน่ง",
+    Callback = function()
+        local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            startPosition = hrp.Position
+            posLabel:SetText("ตำแหน่งที่จำ: " .. tostring(startPosition))
+        end
+    end
+})
+
+-- ปุ่มวาปไปตำแหน่งที่บันทึก
+FarmTab:CreateButton({
+    Name = "วาปไปตำแหน่งที่จำ",
+    Callback = function()
+        if startPosition then warpTo(startPosition) end
+    end
+})
+
+-- Slider ปรับความเร็วเดิน
+FarmTab:CreateSlider({
+    Name = "ปรับความเร็วเดิน",
+    Range = {16, 200}, -- 16 = ปกติ, 200 = เร็วมาก
+    Increment = 1,
+    CurrentValue = walkSpeed,
+    Callback = function(value)
+        walkSpeed = value
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = walkSpeed
+        end
+    end
+})
+
+-- ตรวจหลอด Pan
+local function checkAndWarp()
+    local fillText = player.PlayerGui:FindFirstChild("ToolUI") 
+        and player.PlayerGui.ToolUI:FindFirstChild("FillingPan") 
+        and player.PlayerGui.ToolUI.FillingPan:FindFirstChild("FillText")
+    if not fillText then return end
+
+    local text = tostring(fillText.Text):gsub("%s+", "")
+    local current, max = text:match("^(%d+)%s*/%s*(%d+)$")
+
+    if current and max then
+        current, max = tonumber(current), tonumber(max)
+        if current >= max then
+            warpTo(Vector3.new(-90.1818, 9, 26.5255)) -- จุดส่ง
+        elseif current < max and startPosition then
+            warpTo(startPosition)
+        end
+    end
+end
+
+-- ตรวจ Inventory + ขายของ
+local function checkInventoryAndSell()
+    local invText = player.PlayerGui:FindFirstChild("BackpackGui") 
+        and player.PlayerGui.BackpackGui:FindFirstChild("Backpack") 
+        and player.PlayerGui.BackpackGui.Backpack:FindFirstChild("Inventory") 
+        and player.PlayerGui.BackpackGui.Backpack.Inventory:FindFirstChild("TopButtons") 
+        and player.PlayerGui.BackpackGui.Backpack.Inventory.TopButtons:FindFirstChild("Unaffected") 
+        and player.PlayerGui.BackpackGui.Backpack.Inventory.TopButtons.Unaffected:FindFirstChild("InventorySize")
+    if not invText then return end
+
+    local text = tostring(invText.Text):gsub("%s+", "")
+    local current, max = text:match("^(%d+)%s*/%s*(%d+)$")
+
+    if current and max then
+        current, max = tonumber(current), tonumber(max)
+        if current > 499 then
+            warpTo(Vector3.new(12.9845, 25, 62.1435)) -- จุดขายของ
+            task.wait(0.2)
+            local shopRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll")
+            shopRemote:InvokeServer()
+            task.wait(0.2)
+            if startPosition then warpTo(startPosition) end
+        end
+    end
+end
+
+-- Auto Farm Pans
+local function autoFarmPans(character)
+    for _, item in pairs(character:GetChildren()) do
+        if item:IsA("Tool") and item.Name:sub(-3) == "Pan" then
+            local scripts = item:FindFirstChild("Scripts")
+            if scripts then
+                pcall(function()
+                    if scripts:FindFirstChild("Pan") then scripts.Pan:InvokeServer() end
+                    if scripts:FindFirstChild("Shake") then scripts.Shake:FireServer() end
+                    if scripts:FindFirstChild("Collect") then scripts.Collect:InvokeServer(1) end
+                end)
+            end
+        end
+    end
+end
+
+-- ลูปหลัก
+task.spawn(function()
+    while true do
+        if autoFarmEnabled and Char then
+            autoFarmPans(Char)
+            checkAndWarp()
+            checkInventoryAndSell()
+            -- อัปเดต WalkSpeed ตลอดเวลา
+            if Char:FindFirstChild("Humanoid") then
+                Char.Humanoid.WalkSpeed = walkSpeed
+            end
+        end
+        task.wait(0.00000001)
+    end
+end)
+
+-- อัพเดท Character และบันทึกตำแหน่งใหม่หลัง Respawn
+player.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    -- รอ HumanoidRootPart โหลด
+    local hrp = Char:WaitForChild("HumanoidRootPart", 5)
+    if hrp and not startPosition then
+        startPosition = hrp.Position
+        posLabel:SetText("ตำแหน่งที่จำ: " .. tostring(startPosition))
+    end
+end)
