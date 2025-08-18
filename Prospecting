@@ -88,7 +88,29 @@ FarmTab:CreateSlider({
     end
 })
 
--- ตรวจหลอด Pan
+-- 📌 จุดส่งทั้งหมด
+local sellPoints = {
+    Vector3.new(-90.1818, 9, 26.5255),
+    Vector3.new(-405.5766, 9, -30.5470),
+    Vector3.new(-338.4560, 9, -423.8927),
+    Vector3.new(-188.2495, 9, -447.3716)
+}
+
+-- 📌 ฟังก์ชันหาจุดที่ใกล้ที่สุด
+local function getClosestPoint(pos)
+    local closest = nil
+    local shortestDist = math.huge
+    for _, point in ipairs(sellPoints) do
+        local dist = (pos - point).Magnitude
+        if dist < shortestDist then
+            shortestDist = dist
+            closest = point
+        end
+    end
+    return closest
+end
+
+-- 📌 ตรวจหลอด Pan + วาปไปจุดใกล้สุด
 local function checkAndWarp()
     local fillText = player.PlayerGui:FindFirstChild("ToolUI") 
         and player.PlayerGui.ToolUI:FindFirstChild("FillingPan") 
@@ -101,7 +123,13 @@ local function checkAndWarp()
     if current and max then
         current, max = tonumber(current), tonumber(max)
         if current >= max then
-            warpTo(Vector3.new(-90.1818, 9, 26.5255)) -- จุดส่ง
+            local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local closestPoint = getClosestPoint(hrp.Position)
+                if closestPoint then
+                    warpTo(closestPoint)
+                end
+            end
         elseif current < max and startPosition then
             warpTo(startPosition)
         end
@@ -162,7 +190,7 @@ task.spawn(function()
                 Char.Humanoid.WalkSpeed = walkSpeed
             end
         end
-        task.wait(0.00000001)
+        task.wait(0.001) -- ลด CPU load
     end
 end)
 
