@@ -51,6 +51,24 @@ FarmTab:CreateToggle({
     CurrentValue = false,
     Callback = function(state)
         autoFarmEnabled = state
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local Char = player.Character or player.CharacterAdded:Wait()
+
+local function autoEquipPan()
+    local containers = {Char, player.Backpack} -- ตรวจทั้งตัวละครและกระเป๋า
+    for _, container in pairs(containers) do
+        for _, item in pairs(container:GetChildren()) do
+            if item:IsA("Tool") and item.Name:sub(-3) == "Pan" then
+                player.Character.Humanoid:EquipTool(item)
+                return -- ถือแค่ตัวแรกที่เจอ
+            end
+        end
+    end
+end
+
+autoEquipPan() -- เรียกใช้ฟังก์ชัน
+
     end
 })
 
@@ -190,7 +208,7 @@ task.spawn(function()
                 Char.Humanoid.WalkSpeed = walkSpeed
             end
         end
-        task.wait(0.001) -- ลด CPU load
+        task.wait(0.001) 
     end
 end)
 
