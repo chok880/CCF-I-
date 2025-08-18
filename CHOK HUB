@@ -1,12 +1,28 @@
-local placeScripts = {
-    [131716211654599] = loadstring(game:HttpGet("https://raw.githubusercontent.com/chok880/CCF-I-/main/Fisch%20Script", true))(),
-    [129827112113663] = loadstring(game:HttpGet("https://raw.githubusercontent.com/chok880/CCF-I-/refs/heads/main/Prospecting", true))()
+-- 📌 ตารางสคริปต์สำหรับแต่ละ PlaceId
+local AutoScripts = {
+    [131716211654599] = "https://raw.githubusercontent.com/chok880/CCF-I-/main/Fisch%20Script",
+    [129827112113663] = "https://raw.githubusercontent.com/chok880/CCF-I-/refs/heads/main/Prospecting"
 }
 
-local currentPlaceId = game.PlaceId
-
-if placeScripts[currentPlaceId] then
-    placeScripts[currentPlaceId]()
-else
-    print("ไม่มีสคริปต์สำหรับ PlaceId นี้:", currentPlaceId)
+-- 📌 ฟังก์ชันโหลดสคริปต์อัตโนมัติ
+local function loadAutoScript()
+    local placeId = game.PlaceId
+    local scriptUrl = AutoScripts[placeId]
+    
+    if scriptUrl then
+        -- โหลดและรันสคริปต์
+        local success, err = pcall(function()
+            loadstring(game:HttpGet(scriptUrl, true))()
+        end)
+        if success then
+            print("โหลดสคริปต์สำเร็จสำหรับ PlaceId:", placeId)
+        else
+            warn("เกิดข้อผิดพลาดในการโหลดสคริปต์:", err)
+        end
+    else
+        print("ไม่มีสคริปต์สำหรับ PlaceId นี้:", placeId)
+    end
 end
+
+-- 📌 เรียกใช้งานอัตโนมัติ
+loadAutoScript()
