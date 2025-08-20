@@ -1,0 +1,227 @@
+-- 📌 ตั้งค่าพื้นฐาน
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- โหลด Luna UI
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
+
+local Window = Luna:CreateWindow({
+    Name = "CK HUB ",
+    Subtitle = "V.2.12",
+    LoadingEnabled = true,
+    LoadingTitle = "CK HUB",
+    LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
+    ConfigSettings = {
+        ConfigFolder = "CK HUB Config"
+    },
+    KeySystem = false
+})
+
+Window:CreateHomeTab({
+    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
+    Icon = 1
+})
+
+local Tab_Main = Window:CreateTab({
+    Name = "เมนูหลัก",
+    Icon = "view_in_ar",
+    ImageSource = "Material"
+})
+
+------------------------------------------------------------
+-- 📍 ปุ่มบันทึกตำแหน่ง
+------------------------------------------------------------
+local farmPos = nil
+local waterPos = nil
+local statusLabel -- สำหรับแสดงสถานะ
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดฟาร์ม",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        farmPos = Char.HumanoidRootPart.CFrame
+        print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
+    end
+})
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดน้ำ",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        waterPos = Char.HumanoidRootPart.CFrame
+        print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
+    end
+})
+
+------------------------------------------------------------
+-- 🥄 ทำงานอัตโนมัติ
+------------------------------------------------------------
+statusLabel = Tab_Main:CreateLabel({
+    Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
+    Style = 2
+})
+
+Tab_Main:CreateToggle({
+    Name = "🥄 ทำงานอัตโนมัติ (แพน + วาร์ป)",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoPanWarp = state
+        task.spawn(function()
+            local function isPan(toolName)
+                return string.sub(toolName, -3):lower() == "pan"
+            end
+
+            while _G.AutoPanWarp and task.wait(0.05) do
+                Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+                local containers = {Char, LocalPlayer.Backpack}
+                for _, container in pairs(containers) do
+                    for _, tool in pairs(container:GetChildren()) do
+                        if tool:IsA("Tool") and isPan(tool.Name) then
+                            local scriptsFolder = tool:FindFirstChild("Scripts")
+                            if scriptsFolder then
+                                local collect = scriptsFolder:FindFirstChild("Collect")
+                                local pan = scriptsFolder:FindFirstChild("Pan")
+                                local shake = scriptsFolder:FindFirstChild("Shake")
+
+                                -- ดึงค่าหลอดจาก GUI
+                                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                                local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
+
+                                local current, max = nil, nil
+                                if fillText and fillText.Text then
+                                    local a, b = fillText.Text:match("(%d+)/(%d+)")
+                                    current, max = tonumber(a), tonumber(b)
+                                end
+
+                                -- 🥄 Collect เรียกตลอด
+                                if collect and collect:IsA("RemoteFunction") then
+                                    pcall(function()
+                                        collect:InvokeServer(1)
+                                    end)
+                                end
+
+                                -- ✅ Pan ทำงานเฉพาะตอนเต็ม
+                                if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
+                                    pcall(function()
+                                        pan:InvokeServer()
+                                    end)
+                                end
+
+                                -- 🌀 Shake เรียกตลอด
+                                if shake and shake:IsA("RemoteEvent") then
+                                    pcall(function()
+                                        shake:FireServer()
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 📌 ตรวจสอบค่าหลอด + วาร์ป
+                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
+                    local text = gui.FillingPan.FillText.Text
+                    local current, max = text:match("(%d+)/(%d+)")
+                    current, max = tonumber(current), tonumber(max)
+
+                    if current and max and waterPos and farmPos then
+                        if current >= max then
+                            Char.HumanoidRootPart.CFrame = waterPos
+                            statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
+                        else
+                            Char.HumanoidRootPart.CFrame = farmPos
+                            statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
+                        end
+                    else
+                        statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำก่อน")
+                    end
+                end
+            end
+
+            -- ปิดแล้วรีเซ็ตข้อความ
+            if not _G.AutoPanWarp then
+                statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
+            end
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- ⏳ ป้องกันหลุด (AFK)
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "⏳ ป้องกันการหลุด (Anti AFK)",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AntiAFK = state
+        if state then
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            task.spawn(function()
+                while _G.AntiAFK and task.wait(60) do
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+                end
+            end)
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 🏃 ปรับความเร็ว และ กระโดดสูง
+------------------------------------------------------------
+local Humanoid = Char:WaitForChild("Humanoid")
+
+-- ความเร็ว
+Tab_Main:CreateSlider({
+    Name = "🏃 ความเร็ว (WalkSpeed)",
+    Range = {16, 200},
+    Increment = 1,
+    CurrentValue = Humanoid.WalkSpeed,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = value
+        end
+    end
+})
+
+-- กระโดดสูง
+Tab_Main:CreateSlider({
+    Name = "🦘 กระโดดสูง (JumpPower)",
+    Range = {50, 500},
+    Increment = 5,
+    CurrentValue = Humanoid.JumpPower,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.JumpPower = value
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 💳 เครดิต
+------------------------------------------------------------
+local Tab_Credit = Window:CreateTab({
+    Name = "เครดิต",
+    Icon = "info",
+    ImageSource = "Material"
+})
+
+Tab_Credit:CreateLabel({
+    Text = "ถ้าบัคออกเเมพเข้าใหม่",
+    Style = 5
+})
+
+Tab_Credit:CreateLabel({
+    Text = "เครดิต fb มาปั่นเล็กน้อย",
+    Style = 2
+})
+
+-- 📌 อัพเดท Character เมื่อเกิดใหม่
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    task.wait(1)
+end)
