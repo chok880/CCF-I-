@@ -1,220 +1,180 @@
--- 📌 ตั้งค่าพื้นฐาน (เก็บแค่สิ่งจำเป็น)
+-- 📌 ตั้งค่าพื้นฐาน
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local player = Players.LocalPlayer
+local LocalPlayer = Players.LocalPlayer
+local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
--- ตัวแปรสำคัญ
-local Char = player.Character or player.CharacterAdded:Wait()
-local startPos = nil
-local isRunning = false
-local walkSpeed = 24
-
--- Cache ที่สำคัญ (ไม่ต้องหาใหม่ทุกครั้ง)
-local shopRemote = nil
-local currentTool = nil
-
--- ฟังก์ชันวาปที่เร็วขึ้น
-local function fastWarp(pos)
-    local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
-    if hrp and pos then
-        hrp.CFrame = CFrame.new(pos)
-    end
-end
-
--- หา Pan ในตัว (เร็วขึ้น)
-local function findPan()
-    if currentTool and currentTool.Parent == Char then
-        return currentTool
-    end
-    
-    -- หาใน Character ก่อน
-    for _, item in pairs(Char:GetChildren()) do
-        if item:IsA("Tool") and item.Name:find("Pan") then
-            currentTool = item
-            return item
-        end
-    end
-    
-    -- หาใน Backpack
-    for _, item in pairs(player.Backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name:find("Pan") then
-            player.Character.Humanoid:EquipTool(item)
-            currentTool = item
-            return item
-        end
-    end
-    return nil
-end
-
--- ฟังก์ชันขุดแบบเร็ว
-local function quickFarm()
-    local pan = findPan()
-    if not pan then return end
-    
-    local scripts = pan:FindFirstChild("Scripts")
-    if scripts then
-        -- ใช้ spawn เพื่อไม่ให้รอ
-        task.spawn(function()
-            pcall(function() if scripts:FindFirstChild("Pan") then scripts.Pan:InvokeServer() end end)
-            pcall(function() if scripts:FindFirstChild("Shake") then scripts.Shake:FireServer() end end)
-            pcall(function() if scripts:FindFirstChild("Collect") then scripts.Collect:InvokeServer(1) end end)
-        end)
-    end
-end
-
--- เช็ค Pan เต็ม (ง่ายขึ้น)
-local function isPanFull()
-    local fillText = player.PlayerGui:FindFirstChild("ToolUI") 
-        and player.PlayerGui.ToolUI:FindFirstChild("FillingPan") 
-        and player.PlayerGui.ToolUI.FillingPan:FindFirstChild("FillText")
-    
-    if fillText then
-        local text = fillText.Text:gsub("%s+", "")
-        local current, max = text:match("(%d+)/(%d+)")
-        if current and max then
-            return tonumber(current) >= tonumber(max)
-        end
-    end
-    return false
-end
-
--- เช็คกระเป๋าเต็ม (ง่ายขึ้น)
-local function isInventoryFull()
-    local invText = player.PlayerGui:FindFirstChild("BackpackGui") 
-        and player.PlayerGui.BackpackGui:FindFirstChild("Backpack") 
-        and player.PlayerGui.BackpackGui.Backpack:FindFirstChild("Inventory") 
-        and player.PlayerGui.BackpackGui.Backpack.Inventory:FindFirstChild("TopButtons") 
-        and player.PlayerGui.BackpackGui.Backpack.Inventory.TopButtons:FindFirstChild("Unaffected") 
-        and player.PlayerGui.BackpackGui.Backpack.Inventory.TopButtons.Unaffected:FindFirstChild("InventorySize")
-    
-    if invText then
-        local current = invText.Text:match("(%d+)")
-        return tonumber(current) and tonumber(current) > 499
-    end
-    return false
-end
-
--- จุดขาย (เลือกจุดที่ใกล้สุด)
-local sellPoints = {
-    Vector3.new(-90, 9, 26),
-    Vector3.new(-405, 9, -30),
-    Vector3.new(-338, 9, -423),
-    Vector3.new(-188, 9, -447)
-}
-
-local function getClosestSellPoint()
-    local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return sellPoints[1] end
-    
-    local closest = sellPoints[1]
-    local minDist = (hrp.Position - sellPoints[1]).Magnitude
-    
-    for i = 2, #sellPoints do
-        local dist = (hrp.Position - sellPoints[i]).Magnitude
-        if dist < minDist then
-            minDist = dist
-            closest = sellPoints[i]
-        end
-    end
-    return closest
-end
-
--- ขายของ
-local function sellAll()
-    if not shopRemote then
-        shopRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll")
-    end
-    
-    fastWarp(Vector3.new(13, 25, 62)) -- จุดขาย
-    task.wait(0.5)
-    shopRemote:InvokeServer()
-    task.wait(0.5)
-    if startPos then fastWarp(startPos) end
-end
-
--- โหลด UI
+-- โหลด Luna UI
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
-local Window = Luna:CreateWindow({Name = "CK Hub V 1.00", Subtitle = "by มาปั่นเล็กน้อย"})
-local Tab = Window:CreateTab({Name = "Auto Farm", Icon = "view_in_ar"})
 
--- สร้าง UI
-local posLabel = Tab:CreateLabel({Text = "ตำแหน่ง: ยังไม่บันทึก"})
-
-Tab:CreateToggle({
-    Name = "เปิด Auto Farm",
-    CurrentValue = false,
-    Callback = function(state) isRunning = state end
+local Window = Luna:CreateWindow({
+    Name = "CK HUB ",
+    Subtitle = "V.2.12",
+    LoadingEnabled = true,
+    LoadingTitle = "CK HUB",
+    LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
+    ConfigSettings = {
+        ConfigFolder = "CK HUB Config"
+    },
+    KeySystem = false
 })
 
-Tab:CreateButton({
-    Name = "บันทึกตำแหน่ง",
+Window:CreateHomeTab({
+    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
+    Icon = 1
+})
+
+local Tab_Main = Window:CreateTab({
+    Name = "เมนูหลัก",
+    Icon = "view_in_ar",
+    ImageSource = "Material"
+})
+
+------------------------------------------------------------
+-- 📍 ปุ่มบันทึกตำแหน่ง
+------------------------------------------------------------
+local farmPos = nil
+local waterPos = nil
+local statusLabel -- สำหรับแสดงสถานะ
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดฟาร์ม",
     Callback = function()
-        local hrp = Char and Char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            startPos = hrp.Position
-            posLabel:SetText("ตำแหน่ง: " .. math.floor(startPos.X) .. ", " .. math.floor(startPos.Z))
-        end
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        farmPos = Char.HumanoidRootPart.CFrame
+        print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
     end
 })
 
-Tab:CreateSlider({
-    Name = "ความเร็วเดิน",
-    Range = {16, 100},
-    CurrentValue = walkSpeed,
-    Callback = function(value)
-        walkSpeed = value
-        if Char and Char:FindFirstChild("Humanoid") then
-            Char.Humanoid.WalkSpeed = walkSpeed
-        end
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดน้ำ",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        waterPos = Char.HumanoidRootPart.CFrame
+        print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
     end
 })
 
--- ลูปหลัก (เร็วขึ้น ลดแล็ค)
-local lastCheck = 0
-task.spawn(function()
-    while true do
-        if isRunning and Char then
-            local now = tick()
-            
-            -- Farm ทุกครั้ง
-            quickFarm()
-            
-            -- เช็คสถานะทุก 0.5 วินาที (ลดแล็ค)
-            if now - lastCheck > 0.5 then
-                lastCheck = now
-                
-                -- อัพเดทความเร็ว
-                if Char:FindFirstChild("Humanoid") then
-                    Char.Humanoid.WalkSpeed = walkSpeed
+------------------------------------------------------------
+-- 🥄 ทำงานอัตโนมัติ
+------------------------------------------------------------
+statusLabel = Tab_Main:CreateLabel({
+    Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
+    Style = 2
+})
+
+Tab_Main:CreateToggle({
+    Name = "🥄 ทำงานอัตโนมัติ (แพน + วาร์ป)",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoPanWarp = state
+        task.spawn(function()
+            local function isPan(toolName)
+                return string.sub(toolName, -3):lower() == "pan"
+            end
+
+            while _G.AutoPanWarp and task.wait(0.00) do
+                Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+                -- 📌 ใช้เครื่องมือ Pan
+                local containers = {Char, LocalPlayer.Backpack}
+                for _, container in pairs(containers) do
+                    for _, tool in pairs(container:GetChildren()) do
+                        if tool:IsA("Tool") and isPan(tool.Name) then
+                            local scriptsFolder = tool:FindFirstChild("Scripts")
+                            if scriptsFolder then
+                                local collect = scriptsFolder:FindFirstChild("Collect")
+                                if collect and collect:IsA("RemoteFunction") then
+                                    pcall(function()
+                                        collect:InvokeServer(1)
+                                    end)
+                                end
+                                local pan = scriptsFolder:FindFirstChild("Pan")
+                                if pan and pan:IsA("RemoteFunction") then
+                                    pcall(function()
+                                        pan:InvokeServer()
+                                    end)
+                                end
+                                local shake = scriptsFolder:FindFirstChild("Shake")
+                                if shake and shake:IsA("RemoteEvent") then
+                                    pcall(function()
+                                        shake:FireServer()
+                                    end)
+                                end
+                            end
+                        end
+                    end
                 end
-                
-                -- เช็คกระเป๋าเต็ม
-                if isInventoryFull() then
-                    sellAll()
-                elseif isPanFull() then
-                    -- วาปไปจุดขาย Pan
-                    fastWarp(getClosestSellPoint())
-                elseif startPos then
-                    -- กลับจุดขุด
-                    fastWarp(startPos)
+
+                -- 📌 ตรวจสอบค่าหลอด + วาร์ป
+                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
+                    local text = gui.FillingPan.FillText.Text
+                    local current, max = text:match("(%d+)/(%d+)")
+                    current, max = tonumber(current), tonumber(max)
+
+                    if current and max and waterPos and farmPos then
+                        if current >= max then
+                            Char.HumanoidRootPart.CFrame = waterPos
+                            statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
+                        else
+                            Char.HumanoidRootPart.CFrame = farmPos
+                            statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
+                        end
+                    else
+                        statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำก่อน")
+                    end
                 end
             end
-        end
-        task.wait(0.05) -- เร็วขึ้นจาก 0.001
+            -- ปิดแล้วรีเซ็ตข้อความ
+            if not _G.AutoPanWarp then
+                statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
+            end
+        end)
     end
-end)
+})
 
--- อัพเดท Character
-player.CharacterAdded:Connect(function(newChar)
-    Char = newChar
-    currentTool = nil -- Reset cache
-    
-    -- ตั้งตำแหน่งเริ่มต้นถ้าไม่มี
-    if not startPos then
-        local hrp = Char:WaitForChild("HumanoidRootPart", 10)
-        if hrp then
-            startPos = hrp.Position
-            posLabel:SetText("ตำแหน่ง: " .. math.floor(startPos.X) .. ", " .. math.floor(startPos.Z))
+------------------------------------------------------------
+-- ⏳ ป้องกันหลุด (AFK)
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "⏳ ป้องกันการหลุด (Anti AFK)",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AntiAFK = state
+        if state then
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            task.spawn(function()
+                while _G.AntiAFK and task.wait(60) do
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+                end
+            end)
         end
     end
+})
+
+------------------------------------------------------------
+-- 💳 เครดิต
+------------------------------------------------------------
+local Tab_Credit = Window:CreateTab({
+    Name = "เครดิต",
+    Icon = "info",
+    ImageSource = "Material"
+})
+
+Tab_Credit:CreateLabel({
+    Text = "ถ้าบัคออกเเมพเข้าใหม่",
+    Style = 2
+})
+
+Tab_Credit:CreateLabel({
+    Text = "เครดิต fb มาปั่นเล็กน้อย",
+    Style = 2
+})
+
+-- 📌 อัพเดท Character เมื่อเกิดใหม่
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    task.wait(1)
 end)
