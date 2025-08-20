@@ -8,7 +8,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.12",
+    Subtitle = "V.2.13",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -72,10 +72,9 @@ Tab_Main:CreateToggle({
                 return string.sub(toolName, -3):lower() == "pan"
             end
 
-            while _G.AutoPanWarp and task.wait(0.00) do
+            while _G.AutoPanWarp and task.wait(0) do
                 Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
-                -- 📌 ใช้เครื่องมือ Pan
                 local containers = {Char, LocalPlayer.Backpack}
                 for _, container in pairs(containers) do
                     for _, tool in pairs(container:GetChildren()) do
@@ -83,18 +82,34 @@ Tab_Main:CreateToggle({
                             local scriptsFolder = tool:FindFirstChild("Scripts")
                             if scriptsFolder then
                                 local collect = scriptsFolder:FindFirstChild("Collect")
+                                local pan = scriptsFolder:FindFirstChild("Pan")
+                                local shake = scriptsFolder:FindFirstChild("Shake")
+
+                                -- ดึงค่าหลอดจาก GUI
+                                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                                local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
+
+                                local current, max = nil, nil
+                                if fillText and fillText.Text then
+                                    local a, b = fillText.Text:match("(%d+)/(%d+)")
+                                    current, max = tonumber(a), tonumber(b)
+                                end
+
+                                -- 🥄 Collect เรียกตลอด
                                 if collect and collect:IsA("RemoteFunction") then
                                     pcall(function()
                                         collect:InvokeServer(1)
                                     end)
                                 end
-                                local pan = scriptsFolder:FindFirstChild("Pan")
-                                if pan and pan:IsA("RemoteFunction") then
+
+                                -- ✅ Pan ทำงานเฉพาะตอนเต็ม
+                                if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
                                     pcall(function()
                                         pan:InvokeServer()
                                     end)
                                 end
-                                local shake = scriptsFolder:FindFirstChild("Shake")
+
+                                -- 🌀 Shake เรียกตลอด
                                 if shake and shake:IsA("RemoteEvent") then
                                     pcall(function()
                                         shake:FireServer()
@@ -125,6 +140,7 @@ Tab_Main:CreateToggle({
                     end
                 end
             end
+
             -- ปิดแล้วรีเซ็ตข้อความ
             if not _G.AutoPanWarp then
                 statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
@@ -155,6 +171,67 @@ Tab_Main:CreateToggle({
 })
 
 ------------------------------------------------------------
+-- 🏃 ปรับความเร็ว และ กระโดดสูง
+------------------------------------------------------------
+local Humanoid = Char:WaitForChild("Humanoid")
+
+-- ความเร็ว
+Tab_Main:CreateSlider({
+    Name = "🏃 ความเร็ว (WalkSpeed)",
+    Range = {16, 200},
+    Increment = 1,
+    CurrentValue = Humanoid.WalkSpeed,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = value
+        end
+    end
+})
+
+-- กระโดดสูง
+Tab_Main:CreateSlider({
+    Name = "🦘 กระโดดสูง (JumpPower)",
+    Range = {50, 500},
+    Increment = 5,
+    CurrentValue = Humanoid.JumpPower,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.JumpPower = value
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 🎟️ ปุ่มใส่โค้ดทั้งหมด
+------------------------------------------------------------
+Tab_Main:CreateButton({
+    Name = "🎟️ ใส่โค้ดทั้งหมด",
+    Callback = function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
+
+        local codes = {
+            "fossilized",
+            "traveler",
+            "sorrytwo",
+            "millions",
+            "updateone"
+        }
+
+        task.spawn(function()
+            for _, code in ipairs(codes) do
+                pcall(function()
+                    ClaimCode:FireServer(code)
+                    print("✅ ส่งโค้ดสำเร็จ:", code)
+                end)
+                task.wait(0.5)
+            end
+            print("🎉 ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!")
+        end)
+    end
+})
+
+------------------------------------------------------------
 -- 💳 เครดิต
 ------------------------------------------------------------
 local Tab_Credit = Window:CreateTab({
@@ -170,6 +247,11 @@ Tab_Credit:CreateLabel({
 
 Tab_Credit:CreateLabel({
     Text = "เครดิต fb มาปั่นเล็กน้อย",
+    Style = 2
+})
+
+Tab_Credit:CreateLabel({
+    Text = "📌 อัปเดต V.2.13เพิ่มปุ่ม 🎟️ ใส่โค้ดทั้งหมด\n- แก้เสถียรภาพระบบฟาร์ม",
     Style = 2
 })
 
