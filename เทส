@@ -2,13 +2,14 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local TweenService = game:GetService("TweenService")
 
 -- โหลด Luna UI
 local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.12",
+    Subtitle = "V.2.14 เทส ",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -30,118 +31,109 @@ local Tab_Main = Window:CreateTab({
 })
 
 ------------------------------------------------------------
--- 📍 ปุ่มบันทึกตำแหน่ง
+-- 📍 Multi-Farm System + Auto Save Config
 ------------------------------------------------------------
-local farmPos = nil
-local waterPos = nil
-local statusLabel -- สำหรับแสดงสถานะ
+local Config = Window:GetConfig("FarmConfig") or {}
+local farms = Config.Farms or {} -- ตาราง Multi-Farm
+local waterPos = Config.Water or nil
+local statusLabel
 
+local function SaveConfig()
+    Config.Farms = farms
+    Config.Water = waterPos
+    Window:SaveConfig("FarmConfig", Config)
+end
+
+-- บันทึกฟาร์มใหม่
 Tab_Main:CreateButton({
-    Name = "💾 บันทึกจุดฟาร์ม",
+    Name = "💾 บันทึกจุดฟาร์มใหม่",
     Callback = function()
         Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        farmPos = Char.HumanoidRootPart.CFrame
-        print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
+        local pos = Char.HumanoidRootPart.CFrame
+        table.insert(farms, pos)
+        SaveConfig()
+        print("📍 เพิ่มจุดฟาร์มใหม่:", pos)
     end
 })
 
+-- เลือกฟาร์ม
+local selectedFarm = nil
+Tab_Main:CreateDropdown({
+    Name = "เลือกจุดฟาร์ม",
+    Options = {"ไม่มี"} ,
+    CurrentOption = "ไม่มี",
+    Callback = function(opt)
+        if opt ~= "ไม่มี" and farms[tonumber(opt)] then
+            selectedFarm = farms[tonumber(opt)]
+            print("✅ ใช้งานจุดฟาร์มที่:", opt)
+        else
+            selectedFarm = nil
+        end
+    end
+})
+
+-- บันทึกจุดน้ำ
 Tab_Main:CreateButton({
     Name = "💾 บันทึกจุดน้ำ",
     Callback = function()
         Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
         waterPos = Char.HumanoidRootPart.CFrame
+        SaveConfig()
         print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
     end
 })
 
 ------------------------------------------------------------
--- 🥄 ทำงานอัตโนมัติ
+-- 🥄 ทำงานอัตโนมัติ (Pan + Warp)
 ------------------------------------------------------------
 statusLabel = Tab_Main:CreateLabel({
     Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
     Style = 2
 })
 
+-- ฟังก์ชันวาร์ปแบบสมูท
+local function SmartWarp(targetCFrame)
+    if not Char or not Char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = Char.HumanoidRootPart
+    local dist = (hrp.Position - targetCFrame.Position).Magnitude
+    if dist <= 20 then
+        hrp.CFrame = targetCFrame
+    else
+        local tween = TweenService:Create(hrp, TweenInfo.new(dist/20, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+        tween:Play()
+        tween.Completed:Wait()
+    end
+end
+
 Tab_Main:CreateToggle({
-    Name = "🥄 ทำงานอัตโนมัติ (แพน + วาร์ป)",
+    Name = "🥄 ทำงานอัตโนมัติ (Multi-Farm + Smart Warp)",
     CurrentValue = false,
     Callback = function(state)
         _G.AutoPanWarp = state
         task.spawn(function()
-            local function isPan(toolName)
-                return string.sub(toolName, -3):lower() == "pan"
-            end
-
-            while _G.AutoPanWarp and task.wait(0.05) do
+            while _G.AutoPanWarp and task.wait(0.1) do
                 Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
-                local containers = {Char, LocalPlayer.Backpack}
-                for _, container in pairs(containers) do
-                    for _, tool in pairs(container:GetChildren()) do
-                        if tool:IsA("Tool") and isPan(tool.Name) then
-                            local scriptsFolder = tool:FindFirstChild("Scripts")
-                            if scriptsFolder then
-                                local collect = scriptsFolder:FindFirstChild("Collect")
-                                local pan = scriptsFolder:FindFirstChild("Pan")
-                                local shake = scriptsFolder:FindFirstChild("Shake")
-
-                                -- ดึงค่าหลอดจาก GUI
-                                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
-                                local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
-
-                                local current, max = nil, nil
-                                if fillText and fillText.Text then
-                                    local a, b = fillText.Text:match("(%d+)/(%d+)")
-                                    current, max = tonumber(a), tonumber(b)
-                                end
-
-                                -- 🥄 Collect เรียกตลอด
-                                if collect and collect:IsA("RemoteFunction") then
-                                    pcall(function()
-                                        collect:InvokeServer(1)
-                                    end)
-                                end
-
-                                -- ✅ Pan ทำงานเฉพาะตอนเต็ม
-                                if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
-                                    pcall(function()
-                                        pan:InvokeServer()
-                                    end)
-                                end
-
-                                -- 🌀 Shake เรียกตลอด
-                                if shake and shake:IsA("RemoteEvent") then
-                                    pcall(function()
-                                        shake:FireServer()
-                                    end)
-                                end
-                            end
-                        end
-                    end
-                end
-
-                -- 📌 ตรวจสอบค่าหลอด + วาร์ป
+                -- เช็ค GUI หลอด
                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
                 if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
                     local text = gui.FillingPan.FillText.Text
                     local current, max = text:match("(%d+)/(%d+)")
                     current, max = tonumber(current), tonumber(max)
 
-                    if current and max and waterPos and farmPos then
+                    if current and max and waterPos and selectedFarm then
                         if current >= max then
-                            Char.HumanoidRootPart.CFrame = waterPos
+                            SmartWarp(waterPos)
                             statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
                         else
-                            Char.HumanoidRootPart.CFrame = farmPos
+                            SmartWarp(selectedFarm)
                             statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
                         end
                     else
-                        statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำก่อน")
+                        statusLabel:Set("⚠️ กรุณาบันทึกและเลือกจุดฟาร์ม/น้ำก่อน")
                     end
                 end
             end
-
-            -- ปิดแล้วรีเซ็ตข้อความ
             if not _G.AutoPanWarp then
                 statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
             end
@@ -150,7 +142,7 @@ Tab_Main:CreateToggle({
 })
 
 ------------------------------------------------------------
--- ⏳ ป้องกันหลุด (AFK)
+-- ⏳ ป้องกันหลุด (Anti AFK)
 ------------------------------------------------------------
 Tab_Main:CreateToggle({
     Name = "⏳ ป้องกันการหลุด (Anti AFK)",
@@ -169,59 +161,3 @@ Tab_Main:CreateToggle({
         end
     end
 })
-
-------------------------------------------------------------
--- 🏃 ปรับความเร็ว และ กระโดดสูง
-------------------------------------------------------------
-local Humanoid = Char:WaitForChild("Humanoid")
-
--- ความเร็ว
-Tab_Main:CreateSlider({
-    Name = "🏃 ความเร็ว (WalkSpeed)",
-    Range = {16, 200},
-    Increment = 1,
-    CurrentValue = Humanoid.WalkSpeed,
-    Callback = function(value)
-        if Char and Char:FindFirstChild("Humanoid") then
-            Char.Humanoid.WalkSpeed = value
-        end
-    end
-})
-
--- กระโดดสูง
-Tab_Main:CreateSlider({
-    Name = "🦘 กระโดดสูง (JumpPower)",
-    Range = {50, 500},
-    Increment = 5,
-    CurrentValue = Humanoid.JumpPower,
-    Callback = function(value)
-        if Char and Char:FindFirstChild("Humanoid") then
-            Char.Humanoid.JumpPower = value
-        end
-    end
-})
-
-------------------------------------------------------------
--- 💳 เครดิต
-------------------------------------------------------------
-local Tab_Credit = Window:CreateTab({
-    Name = "เครดิต",
-    Icon = "info",
-    ImageSource = "Material"
-})
-
-Tab_Credit:CreateLabel({
-    Text = "ถ้าบัคออกเเมพเข้าใหม่",
-    Style = 5
-})
-
-Tab_Credit:CreateLabel({
-    Text = "เครดิต fb มาปั่นเล็กน้อย",
-    Style = 2
-})
-
--- 📌 อัพเดท Character เมื่อเกิดใหม่
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    Char = newChar
-    task.wait(1)
-end)
