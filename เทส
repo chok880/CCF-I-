@@ -1,163 +1,29 @@
--- 📌 ตั้งค่าพื้นฐาน
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local TweenService = game:GetService("TweenService")
+function Getpcall(fn, ...)
+    local args = { ... };
+    local results;
+    local ok = xpcall(function()
+        results = { fn(table.unpack(args)) }
+    end, function(err)
+        local trace = debug.traceback("", 2)
+        local line  = err:match(":(%d+):") or trace:match(":(%d+):") or "?"
+        local time  = os.date("%H:%M:%S")
 
--- โหลด Luna UI
-local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
+        warn(string.format([[
+realvisper say!
+----------------------------------------
+Time   : %s
+Line   : %s
+Error  : %s
+Trace  :
+%s
+----------------------------------------
+]], time, line, tostring(err), trace:gsub("\n", "\n  | ")))
+    end)
 
-local Window = Luna:CreateWindow({
-    Name = "CK HUB ",
-    Subtitle = "V.2.14 เทส ",
-    LoadingEnabled = true,
-    LoadingTitle = "CK HUB",
-    LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
-    ConfigSettings = {
-        ConfigFolder = "CK HUB Config"
-    },
-    KeySystem = false
-})
-
-Window:CreateHomeTab({
-    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
-    Icon = 1
-})
-
-local Tab_Main = Window:CreateTab({
-    Name = "เมนูหลัก",
-    Icon = "view_in_ar",
-    ImageSource = "Material"
-})
-
-------------------------------------------------------------
--- 📍 Multi-Farm System + Auto Save Config
-------------------------------------------------------------
-local Config = Window:GetConfig("FarmConfig") or {}
-local farms = Config.Farms or {} -- ตาราง Multi-Farm
-local waterPos = Config.Water or nil
-local statusLabel
-
-local function SaveConfig()
-    Config.Farms = farms
-    Config.Water = waterPos
-    Window:SaveConfig("FarmConfig", Config)
-end
-
--- บันทึกฟาร์มใหม่
-Tab_Main:CreateButton({
-    Name = "💾 บันทึกจุดฟาร์มใหม่",
-    Callback = function()
-        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local pos = Char.HumanoidRootPart.CFrame
-        table.insert(farms, pos)
-        SaveConfig()
-        print("📍 เพิ่มจุดฟาร์มใหม่:", pos)
-    end
-})
-
--- เลือกฟาร์ม
-local selectedFarm = nil
-Tab_Main:CreateDropdown({
-    Name = "เลือกจุดฟาร์ม",
-    Options = {"ไม่มี"} ,
-    CurrentOption = "ไม่มี",
-    Callback = function(opt)
-        if opt ~= "ไม่มี" and farms[tonumber(opt)] then
-            selectedFarm = farms[tonumber(opt)]
-            print("✅ ใช้งานจุดฟาร์มที่:", opt)
-        else
-            selectedFarm = nil
-        end
-    end
-})
-
--- บันทึกจุดน้ำ
-Tab_Main:CreateButton({
-    Name = "💾 บันทึกจุดน้ำ",
-    Callback = function()
-        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        waterPos = Char.HumanoidRootPart.CFrame
-        SaveConfig()
-        print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
-    end
-})
-
-------------------------------------------------------------
--- 🥄 ทำงานอัตโนมัติ (Pan + Warp)
-------------------------------------------------------------
-statusLabel = Tab_Main:CreateLabel({
-    Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
-    Style = 2
-})
-
--- ฟังก์ชันวาร์ปแบบสมูท
-local function SmartWarp(targetCFrame)
-    if not Char or not Char:FindFirstChild("HumanoidRootPart") then return end
-    local hrp = Char.HumanoidRootPart
-    local dist = (hrp.Position - targetCFrame.Position).Magnitude
-    if dist <= 20 then
-        hrp.CFrame = targetCFrame
+    if ok then
+        return true, table.unpack(results)
     else
-        local tween = TweenService:Create(hrp, TweenInfo.new(dist/20, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-        tween:Play()
-        tween.Completed:Wait()
+        return false 
     end
 end
-
-Tab_Main:CreateToggle({
-    Name = "🥄 ทำงานอัตโนมัติ (Multi-Farm + Smart Warp)",
-    CurrentValue = false,
-    Callback = function(state)
-        _G.AutoPanWarp = state
-        task.spawn(function()
-            while _G.AutoPanWarp and task.wait(0.1) do
-                Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-
-                -- เช็ค GUI หลอด
-                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
-                if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
-                    local text = gui.FillingPan.FillText.Text
-                    local current, max = text:match("(%d+)/(%d+)")
-                    current, max = tonumber(current), tonumber(max)
-
-                    if current and max and waterPos and selectedFarm then
-                        if current >= max then
-                            SmartWarp(waterPos)
-                            statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
-                        else
-                            SmartWarp(selectedFarm)
-                            statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
-                        end
-                    else
-                        statusLabel:Set("⚠️ กรุณาบันทึกและเลือกจุดฟาร์ม/น้ำก่อน")
-                    end
-                end
-            end
-            if not _G.AutoPanWarp then
-                statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
-            end
-        end)
-    end
-})
-
-------------------------------------------------------------
--- ⏳ ป้องกันหลุด (Anti AFK)
-------------------------------------------------------------
-Tab_Main:CreateToggle({
-    Name = "⏳ ป้องกันการหลุด (Anti AFK)",
-    CurrentValue = false,
-    Callback = function(state)
-        _G.AntiAFK = state
-        if state then
-            local VirtualInputManager = game:GetService("VirtualInputManager")
-            task.spawn(function()
-                while _G.AntiAFK and task.wait(60) do
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-                    task.wait(0.1)
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
-                end
-            end)
-        end
-    end
-})
+-- 
