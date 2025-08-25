@@ -19,7 +19,25 @@ local Window = Luna:CreateWindow({
 })
 
 Window:CreateHomeTab({
-    SupportedExecutors = {"Delta", "Krnl", "Fluxus", "Script-Ware" , "xeno" , "Velocity" },
+   SupportedExecutors = {
+    "Delta",
+    "Krnl",
+    "Fluxus",
+    "Script-Ware",
+    "xeno",
+    "Velocity",
+    "Synapse",
+    "JJSploit",
+    "Proxo",
+    "EasyExploits",
+    "OxygenU",
+    "Comet",
+    "Electron",
+    "Arsenal",
+    "Calamari"
+    -- เพิ่มชื่อ executors อื่น ๆ ตามที่คุณต้องการ
+}
+
     Icon = 1
 })
 
