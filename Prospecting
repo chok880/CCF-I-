@@ -35,7 +35,6 @@ Window:CreateHomeTab({
         "Electron",
         "Arsenal",
         "Calamari"
-        -- เพิ่มชื่อ executor อื่น ๆ ได้เรื่อย ๆ
     },
     Icon = 1
 })
