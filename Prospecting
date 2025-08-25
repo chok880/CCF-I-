@@ -19,9 +19,27 @@ local Window = Luna:CreateWindow({
 })
 
 Window:CreateHomeTab({
-    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
+    SupportedExecutors = {
+        "Synapse X",
+        "Krnl",
+        "Fluxus",
+        "Script-Ware",
+        "xeno",
+        "Velocity",
+        "Delta",
+        "JJSploit",
+        "Proxo",
+        "EasyExploits",
+        "OxygenU",
+        "Comet",
+        "Electron",
+        "Arsenal",
+        "Calamari"
+        -- เพิ่มชื่อ executor อื่น ๆ ได้เรื่อย ๆ
+    },
     Icon = 1
 })
+
 
 local Tab_Main = Window:CreateTab({
     Name = "เมนูหลัก",
