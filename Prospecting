@@ -8,7 +8,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.13",
+    Subtitle = "V.2.14",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -34,7 +34,7 @@ local Tab_Main = Window:CreateTab({
 ------------------------------------------------------------
 local farmPos = nil
 local waterPos = nil
-local statusLabel -- สำหรับแสดงสถานะ
+local statusLabel
 
 Tab_Main:CreateButton({
     Name = "💾 บันทึกจุดฟาร์ม",
@@ -72,7 +72,7 @@ Tab_Main:CreateToggle({
                 return string.sub(toolName, -3):lower() == "pan"
             end
 
-            while _G.AutoPanWarp and task.wait(0) do
+            while _G.AutoPanWarp and task.wait() do
                 Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
                 local containers = {Char, LocalPlayer.Backpack}
@@ -91,11 +91,11 @@ Tab_Main:CreateToggle({
 
                                 local current, max = nil, nil
                                 if fillText and fillText.Text then
-                                    local a, b = fillText.Text:match("(%d+)/(%d+)")
+                                    local a, b = fillText.Text:match("([%d%.]+)/([%d%.]+)")
                                     current, max = tonumber(a), tonumber(b)
                                 end
 
-                                -- 🥄 Collect เรียกตลอด
+                                -- 🥄 Collect
                                 if collect and collect:IsA("RemoteFunction") then
                                     pcall(function()
                                         collect:InvokeServer(1)
@@ -109,7 +109,7 @@ Tab_Main:CreateToggle({
                                     end)
                                 end
 
-                                -- 🌀 Shake เรียกตลอด
+                                -- 🌀 Shake
                                 if shake and shake:IsA("RemoteEvent") then
                                     pcall(function()
                                         shake:FireServer()
@@ -124,8 +124,8 @@ Tab_Main:CreateToggle({
                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
                 if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
                     local text = gui.FillingPan.FillText.Text
-                    local current, max = text:match("(%d+)/(%d+)")
-                    current, max = tonumber(current), tonumber(max)
+                    local a, b = text:match("([%d%.]+)/([%d%.]+)")
+                    local current, max = tonumber(a), tonumber(b)
 
                     if current and max and waterPos and farmPos then
                         if current >= max then
@@ -141,7 +141,6 @@ Tab_Main:CreateToggle({
                 end
             end
 
-            -- ปิดแล้วรีเซ็ตข้อความ
             if not _G.AutoPanWarp then
                 statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
             end
@@ -171,11 +170,10 @@ Tab_Main:CreateToggle({
 })
 
 ------------------------------------------------------------
--- 🏃 ปรับความเร็ว และ กระโดดสูง
+-- 🏃 ความเร็ว และ กระโดด
 ------------------------------------------------------------
 local Humanoid = Char:WaitForChild("Humanoid")
 
--- ความเร็ว
 Tab_Main:CreateSlider({
     Name = "🏃 ความเร็ว (WalkSpeed)",
     Range = {16, 200},
@@ -188,7 +186,6 @@ Tab_Main:CreateSlider({
     end
 })
 
--- กระโดดสูง
 Tab_Main:CreateSlider({
     Name = "🦘 กระโดดสูง (JumpPower)",
     Range = {50, 500},
@@ -202,7 +199,7 @@ Tab_Main:CreateSlider({
 })
 
 ------------------------------------------------------------
--- 🎟️ ปุ่มใส่โค้ดทั้งหมด
+-- 🎟️ ปุ่มใส่โค้ดทั้งหมด (อัปเดตใหม่)
 ------------------------------------------------------------
 Tab_Main:CreateButton({
     Name = "🎟️ ใส่โค้ดทั้งหมด",
@@ -211,8 +208,10 @@ Tab_Main:CreateButton({
         local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
 
         local codes = {
-            "fossilized",
+            "coolupdate",     -- NEW
+            "hundredmillion", -- NEW
             "traveler",
+            "fossilized",
             "sorrytwo",
             "millions",
             "updateone"
@@ -227,6 +226,21 @@ Tab_Main:CreateButton({
                 task.wait(0.5)
             end
             print("🎉 ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!")
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 🔄 ปุ่มรีจอย
+------------------------------------------------------------
+Tab_Main:CreateButton({
+    Name = "🔄 รีจอยแมพ",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        local placeId = game.PlaceId
+        local jobId = game.JobId
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
         end)
     end
 })
@@ -251,7 +265,7 @@ Tab_Credit:CreateLabel({
 })
 
 Tab_Credit:CreateLabel({
-    Text = "📌 อัปเดต V.2.13เพิ่มปุ่ม 🎟️ ใส่โค้ดทั้งหมด\n- แก้เสถียรภาพระบบฟาร์ม",
+    Text = "📌 อัปเดต V.2.14\n- รองรับทศนิยม FillText\n- เพิ่มปุ่ม 🔄 รีจอย\n- อัปเดตโค้ดใหม่ทั้งหมด",
     Style = 2
 })
 
