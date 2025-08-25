@@ -8,7 +8,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.15",
+    Subtitle = "V.2.15g2",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -35,8 +35,6 @@ local Tab_Main = Window:CreateTab({
 local farmPos = nil
 local waterPos = nil
 local statusLabel
-local autoSellEnabled = false
-local autoUpgradeEnabled = false
 
 Tab_Main:CreateButton({
     Name = "💾 บันทึกจุดฟาร์ม",
@@ -44,8 +42,6 @@ Tab_Main:CreateButton({
         Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
         farmPos = Char.HumanoidRootPart.CFrame
         print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
-        
-        -- แสดงแจ้งเตือนใน UI
         Luna:CreateNotification({
             Name = "บันทึกจุดฟาร์ม",
             Content = "บันทึกตำแหน่งฟาร์มสำเร็จ!",
@@ -61,8 +57,6 @@ Tab_Main:CreateButton({
         Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
         waterPos = Char.HumanoidRootPart.CFrame
         print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
-        
-        -- แสดงแจ้งเตือนใน UI
         Luna:CreateNotification({
             Name = "บันทึกจุดน้ำ",
             Content = "บันทึกตำแหน่งน้ำสำเร็จ!",
@@ -117,7 +111,6 @@ statusLabel = Tab_Main:CreateLabel({
     Style = 2
 })
 
--- เพิ่มตัวแปรสำหรับการนับสถิติ
 local stats = {
     panCount = 0,
     collectCount = 0,
@@ -139,9 +132,8 @@ Tab_Main:CreateToggle({
                 return string.sub(toolName, -3):lower() == "pan"
             end
 
-            while _G.AutoPanWarp and task.wait() do
+            while _G.AutoPanWarp and task.wait(_G.AutoSpeed or 1) do
                 Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-
                 local containers = {Char, LocalPlayer.Backpack}
                 for _, container in pairs(containers) do
                     for _, tool in pairs(container:GetChildren()) do
@@ -152,7 +144,6 @@ Tab_Main:CreateToggle({
                                 local pan = scriptsFolder:FindFirstChild("Pan")
                                 local shake = scriptsFolder:FindFirstChild("Shake")
 
-                                -- ดึงค่าหลอดจาก GUI
                                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
                                 local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
 
@@ -162,7 +153,6 @@ Tab_Main:CreateToggle({
                                     current, max = tonumber(a), tonumber(b)
                                 end
 
-                                -- 🥄 Collect
                                 if collect and collect:IsA("RemoteFunction") then
                                     pcall(function()
                                         collect:InvokeServer(1)
@@ -170,7 +160,6 @@ Tab_Main:CreateToggle({
                                     end)
                                 end
 
-                                -- ✅ Pan ทำงานเฉพาะตอนเต็ม
                                 if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
                                     pcall(function()
                                         pan:InvokeServer()
@@ -178,7 +167,6 @@ Tab_Main:CreateToggle({
                                     end)
                                 end
 
-                                -- 🌀 Shake
                                 if shake and shake:IsA("RemoteEvent") then
                                     pcall(function()
                                         shake:FireServer()
@@ -190,10 +178,8 @@ Tab_Main:CreateToggle({
                     end
                 end
 
-                -- อัปเดตสถิติ
                 statsLabel:Set("📊 สถิติ: Pan: "..stats.panCount.." | Collect: "..stats.collectCount.." | Shake: "..stats.shakeCount)
 
-                -- 📌 ตรวจสอบค่าหลอด + วาร์ป
                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
                 if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
                     local text = gui.FillingPan.FillText.Text
@@ -221,7 +207,6 @@ Tab_Main:CreateToggle({
     end
 })
 
--- รีเซ็ตสถิติ
 Tab_Main:CreateButton({
     Name = "🔄 รีเซ็ตสถิติ",
     Callback = function()
@@ -233,66 +218,7 @@ Tab_Main:CreateButton({
 })
 
 ------------------------------------------------------------
--- 💰 ระบบขายอัตโนมัติ (ใหม่)
-------------------------------------------------------------
-Tab_Main:CreateToggle({
-    Name = "💰 ขายอัตโนมัติ",
-    CurrentValue = false,
-    Callback = function(state)
-        _G.AutoSell = state
-        task.spawn(function()
-            while _G.AutoSell and task.wait(5) do
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local SellRemote = ReplicatedStorage:FindFirstChild("Remotes")
-                if SellRemote then
-                    SellRemote = SellRemote:FindFirstChild("Misc")
-                    if SellRemote then
-                        SellRemote = SellRemote:FindFirstChild("SellAll")
-                        if SellRemote then
-                            pcall(function()
-                                SellRemote:FireServer()
-                                print("💰 ขายของอัตโนมัติ")
-                            end)
-                        end
-                    end
-                end
-            end
-        end)
-    end
-})
-
-------------------------------------------------------------
--- ⬆️ ระบบอัปเกรดอัตโนมัติ (ใหม่)
-------------------------------------------------------------
-Tab_Main:CreateToggle({
-    Name = "⬆️ อัปเกรดอัตโนมัติ",
-    CurrentValue = false,
-    Callback = function(state)
-        _G.AutoUpgrade = state
-        task.spawn(function()
-            while _G.AutoUpgrade and task.wait(10) do
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local UpgradeRemote = ReplicatedStorage:FindFirstChild("Remotes")
-                if UpgradeRemote then
-                    UpgradeRemote = UpgradeRemote:FindFirstChild("Misc")
-                    if UpgradeRemote then
-                        UpgradeRemote = UpgradeRemote:FindFirstChild("Upgrade")
-                        if UpgradeRemote then
-                            -- อัปเกรดแค่ Pan (หรือปรับแก้ตามต้องการ)
-                            pcall(function()
-                                UpgradeRemote:FireServer("Pan") -- เปลี่ยนเป็นชื่อที่ถูกต้อง
-                                print("⬆️ อัปเกรด Pan อัตโนมัติ")
-                            end)
-                        end
-                    end
-                end
-            end
-        end)
-    end
-})
-
-------------------------------------------------------------
--- ⏳ ป้องกันหลุด (AFK) - ปรับปรุง
+-- ⏳ ป้องกันหลุด (AFK)
 ------------------------------------------------------------
 Tab_Main:CreateToggle({
     Name = "⏳ ป้องกันการหลุด (Anti AFK)",
@@ -303,10 +229,8 @@ Tab_Main:CreateToggle({
             local VirtualInputManager = game:GetService("VirtualInputManager")
             task.spawn(function()
                 while _G.AntiAFK and task.wait(60) do
-                    -- สลับการกดปุ่มเพื่อไม่ให้เป็นรูปแบบ
                     local keys = {Enum.KeyCode.LeftShift, Enum.KeyCode.W, Enum.KeyCode.A, Enum.KeyCode.S, Enum.KeyCode.D}
                     local randomKey = keys[math.random(1, #keys)]
-                    
                     VirtualInputManager:SendKeyEvent(true, randomKey, false, game)
                     task.wait(0.1)
                     VirtualInputManager:SendKeyEvent(false, randomKey, false, game)
@@ -318,7 +242,7 @@ Tab_Main:CreateToggle({
 })
 
 ------------------------------------------------------------
--- 🏃 ความเร็ว และ กระโดด
+-- 🏃 ความเร็ว และ กระโดด (บันทึกหลังเกิดใหม่)
 ------------------------------------------------------------
 local Humanoid = Char:WaitForChild("Humanoid")
 
@@ -330,6 +254,7 @@ Tab_Main:CreateSlider({
     Callback = function(value)
         if Char and Char:FindFirstChild("Humanoid") then
             Char.Humanoid.WalkSpeed = value
+            _G.SavedWalkSpeed = value
         end
     end
 })
@@ -342,12 +267,22 @@ Tab_Main:CreateSlider({
     Callback = function(value)
         if Char and Char:FindFirstChild("Humanoid") then
             Char.Humanoid.JumpPower = value
+            _G.SavedJumpPower = value
         end
     end
 })
 
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    task.wait(1)
+    if Char:FindFirstChild("Humanoid") then
+        Char.Humanoid.WalkSpeed = _G.SavedWalkSpeed or 16
+        Char.Humanoid.JumpPower = _G.SavedJumpPower or 50
+    end
+end)
+
 ------------------------------------------------------------
--- ✨ ESP และ Features (ใหม่)
+-- ✨ ESP Players ปรับไม่ซ้อนกัน
 ------------------------------------------------------------
 local Tab_Visual = Window:CreateTab({
     Name = "ภาพและการมองเห็น",
@@ -384,17 +319,17 @@ Tab_Visual:CreateToggle({
         task.spawn(function()
             local function createESP(player)
                 if player == LocalPlayer then return end
-                
                 local function addESP(character)
                     if character:FindFirstChild("HumanoidRootPart") then
+                        local existing = character.HumanoidRootPart:FindFirstChild("ESP")
+                        if existing then existing:Destroy() end
                         local BillboardGui = Instance.new("BillboardGui")
+                        BillboardGui.Name = "ESP"
                         local TextLabel = Instance.new("TextLabel")
-                        
                         BillboardGui.Parent = character.HumanoidRootPart
                         BillboardGui.Size = UDim2.new(0, 100, 0, 50)
                         BillboardGui.StudsOffset = Vector3.new(0, 2, 0)
                         BillboardGui.AlwaysOnTop = true
-                        
                         TextLabel.Parent = BillboardGui
                         TextLabel.Size = UDim2.new(1, 0, 1, 0)
                         TextLabel.BackgroundTransparency = 1
@@ -406,42 +341,33 @@ Tab_Visual:CreateToggle({
                         TextLabel.TextScaled = true
                     end
                 end
-                
-                if player.Character then
-                    addESP(player.Character)
-                end
+                if player.Character then addESP(player.Character) end
                 player.CharacterAdded:Connect(addESP)
             end
-            
             if state then
-                for _, player in pairs(Players:GetPlayers()) do
-                    createESP(player)
-                end
+                for _, player in pairs(Players:GetPlayers()) do createESP(player) end
                 Players.PlayerAdded:Connect(createESP)
+            else
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local esp = player.Character.HumanoidRootPart:FindFirstChild("ESP")
+                        if esp then esp:Destroy() end
+                    end
+                end
             end
         end)
     end
 })
 
 ------------------------------------------------------------
--- 🎟️ ปุ่มใส่โค้ดทั้งหมด (อัปเดตใหม่)
+-- 🎟️ ใส่โค้ดทั้งหมด
 ------------------------------------------------------------
 Tab_Main:CreateButton({
     Name = "🎟️ ใส่โค้ดทั้งหมด",
     Callback = function()
         local ReplicatedStorage = game:GetService("ReplicatedStorage")
         local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
-
-        local codes = {
-            "coolupdate",     -- NEW
-            "hundredmillion", -- NEW
-            "traveler",
-            "fossilized",
-            "sorrytwo",
-            "millions",
-            "updateone"
-        }
-
+        local codes = {"coolupdate","hundredmillion","traveler","fossilized","sorrytwo","millions","updateone"}
         task.spawn(function()
             for _, code in ipairs(codes) do
                 pcall(function()
@@ -451,20 +377,13 @@ Tab_Main:CreateButton({
                 task.wait(0.5)
             end
             print("🎉 ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!")
-            
-            -- แสดงแจ้งเตือน
-            Luna:CreateNotification({
-                Name = "เสร็จสิ้น",
-                Content = "ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!",
-                Image = "check",
-                Time = 5
-            })
+            Luna:CreateNotification({Name="เสร็จสิ้น",Content="ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!",Image="check",Time=5})
         end)
     end
 })
 
 ------------------------------------------------------------
--- 🔄 ปุ่มรีจอย
+-- 🔄 รีจอยแมพ
 ------------------------------------------------------------
 Tab_Main:CreateButton({
     Name = "🔄 รีจอยแมพ",
@@ -479,7 +398,7 @@ Tab_Main:CreateButton({
 })
 
 ------------------------------------------------------------
--- ⚙️ แท็บตั้งค่า (ใหม่)
+-- ⚙️ ตั้งค่า
 ------------------------------------------------------------
 local Tab_Settings = Window:CreateTab({
     Name = "ตั้งค่า",
@@ -508,7 +427,6 @@ Tab_Settings:CreateToggle({
 Tab_Settings:CreateButton({
     Name = "💾 บันทึกการตั้งค่า",
     Callback = function()
-        -- สามารถเพิ่ม Save/Load Config ได้ในอนาคต
         Luna:CreateNotification({
             Name = "บันทึกการตั้งค่า",
             Content = "การตั้งค่าถูกบันทึกแล้ว!",
@@ -527,44 +445,19 @@ local Tab_Credit = Window:CreateTab({
     ImageSource = "Material"
 })
 
+Tab_Credit:CreateLabel({Text="ถ้าบัคออกแมพเข้าใหม่",Style=2})
+Tab_Credit:CreateLabel({Text="เครดิต fb มาปั่นเล็กน้อย",Style=2})
 Tab_Credit:CreateLabel({
-    Text = "ถ้าบัคออกแมพเข้าใหม่",
-    Style = 2
-})
-
-Tab_Credit:CreateLabel({
-    Text = "เครดิต fb มาปั่นเล็กน้อย",
-    Style = 2
-})
-
-Tab_Credit:CreateLabel({
-    Text = "📌 อัปเดต V.2.15\n- เพิ่มระบบสถิติ\n- เพิ่มการขายอัตโนมัติ\n- เพิ่มการอัปเกรดอัตโนมัติ\n- เพิ่ม ESP และ FullBright\n- ปรับปรุง Anti AFK\n- เพิ่มการแจ้งเตือน",
-    Style = 2
+    Text="📌 อัปเดต V.2.15g2\n- ปรับ ESP ไม่ซ้อนกัน\n- ลบขายอัตโนมัติ\n- บันทึก WalkSpeed/JumpPower หลังเกิดใหม่",
+    Style=2
 })
 
 Tab_Credit:CreateButton({
     Name = "📋 คัดลอก Discord",
     Callback = function()
-        setclipboard("discord.gg/your_server") -- เปลี่ยนเป็น Discord จริง
-        Luna:CreateNotification({
-            Name = "คัดลอกแล้ว",
-            Content = "ลิงก์ Discord ถูกคัดลอกแล้ว!",
-            Image = "check",
-            Time = 3
-        })
+        setclipboard("discord.gg/your_server")
+        Luna:CreateNotification({Name="คัดลอกแล้ว",Content="ลิงก์ Discord ถูกคัดลอกแล้ว!",Image="check",Time=3})
     end
 })
 
--- 📌 อัพเดท Character เมื่อเกิดใหม่
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    Char = newChar
-    task.wait(1)
-    
-    -- รีเฟรช WalkSpeed และ JumpPower
-    if Char:FindFirstChild("Humanoid") then
-        Char.Humanoid.WalkSpeed = _G.SavedWalkSpeed or 16
-        Char.Humanoid.JumpPower = _G.SavedJumpPower or 50
-    end
-end)
-
-print("🚀 CK HUB V.2.15 โหลดเสร็จสิ้น!")
+print("🚀 CK HUB
