@@ -19,7 +19,7 @@ local Window = Luna:CreateWindow({
 })
 
 Window:CreateHomeTab({
-    SupportedExecutors = {"Synapse X", "Krnl", "Fluxus", "Script-Ware"},
+    SupportedExecutors = {"Delta", "Krnl", "Fluxus", "Script-Ware" , "xeno" , "Velocity" },
     Icon = 1
 })
 
