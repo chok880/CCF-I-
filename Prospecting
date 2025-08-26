@@ -1,4 +1,10 @@
+-- CK HUB V.2.14p2
+-- fb: มาปั่นเล็กน้อย
+-- 📌 Patch2: AutoFarm + AutoSell + จุดขาย
+
+------------------------------------------------------------
 -- 📌 ตั้งค่าพื้นฐาน
+------------------------------------------------------------
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
@@ -8,7 +14,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.14",
+    Subtitle = "V.2.14p2",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -20,25 +26,12 @@ local Window = Luna:CreateWindow({
 
 Window:CreateHomeTab({
     SupportedExecutors = {
-        "Synapse X",
-        "Krnl",
-        "Fluxus",
-        "Script-Ware",
-        "xeno",
-        "Velocity",
-        "Delta",
-        "JJSploit",
-        "Proxo",
-        "EasyExploits",
-        "OxygenU",
-        "Comet",
-        "Electron",
-        "Arsenal",
-        "Calamari"
+        "Synapse X","Krnl","Fluxus","Script-Ware","xeno","Velocity",
+        "Delta","JJSploit","Proxo","EasyExploits","OxygenU",
+        "Comet","Electron","Arsenal","Calamari"
     },
     Icon = 1
 })
-
 
 local Tab_Main = Window:CreateTab({
     Name = "เมนูหลัก",
@@ -49,8 +42,7 @@ local Tab_Main = Window:CreateTab({
 ------------------------------------------------------------
 -- 📍 ปุ่มบันทึกตำแหน่ง
 ------------------------------------------------------------
-local farmPos = nil
-local waterPos = nil
+local farmPos, waterPos, sellPos = nil, nil, nil
 local statusLabel
 
 Tab_Main:CreateButton({
@@ -71,8 +63,17 @@ Tab_Main:CreateButton({
     end
 })
 
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดขาย",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        sellPos = Char.HumanoidRootPart.CFrame
+        print("💰 บันทึกตำแหน่งขาย:", sellPos)
+    end
+})
+
 ------------------------------------------------------------
--- 🥄 ทำงานอัตโนมัติ
+-- 🤖 ออโต้ฟาร์ม (แพน + วาร์ป + ขายอัตโนมัติ)
 ------------------------------------------------------------
 statusLabel = Tab_Main:CreateLabel({
     Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
@@ -80,18 +81,19 @@ statusLabel = Tab_Main:CreateLabel({
 })
 
 Tab_Main:CreateToggle({
-    Name = "🥄 ทำงานอัตโนมัติ (แพน + วาร์ป)",
+    Name = "🤖 ออโต้ฟาร์ม",
     CurrentValue = false,
     Callback = function(state)
-        _G.AutoPanWarp = state
+        _G.AutoFarm = state
         task.spawn(function()
             local function isPan(toolName)
                 return string.sub(toolName, -3):lower() == "pan"
             end
 
-            while _G.AutoPanWarp and task.wait() do
+            while _G.AutoFarm and task.wait() do
                 Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
+                -- ตรวจสอบ Pan + ทำงานอัตโนมัติ
                 local containers = {Char, LocalPlayer.Backpack}
                 for _, container in pairs(containers) do
                     for _, tool in pairs(container:GetChildren()) do
@@ -102,7 +104,6 @@ Tab_Main:CreateToggle({
                                 local pan = scriptsFolder:FindFirstChild("Pan")
                                 local shake = scriptsFolder:FindFirstChild("Shake")
 
-                                -- ดึงค่าหลอดจาก GUI
                                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
                                 local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
 
@@ -112,21 +113,21 @@ Tab_Main:CreateToggle({
                                     current, max = tonumber(a), tonumber(b)
                                 end
 
-                                -- 🥄 Collect
+                                -- Collect
                                 if collect and collect:IsA("RemoteFunction") then
                                     pcall(function()
                                         collect:InvokeServer(1)
                                     end)
                                 end
 
-                                -- ✅ Pan ทำงานเฉพาะตอนเต็ม
+                                -- Pan (เฉพาะตอนเต็ม)
                                 if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
                                     pcall(function()
                                         pan:InvokeServer()
                                     end)
                                 end
 
-                                -- 🌀 Shake
+                                -- Shake
                                 if shake and shake:IsA("RemoteEvent") then
                                     pcall(function()
                                         shake:FireServer()
@@ -137,14 +138,29 @@ Tab_Main:CreateToggle({
                     end
                 end
 
-                -- 📌 ตรวจสอบค่าหลอด + วาร์ป
+                -- ตรวจสอบค่าหลอด + ฟาร์ม/น้ำ/ขาย
                 local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                local backpackGui = LocalPlayer.PlayerGui:FindFirstChild("BackpackGui")
                 if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
                     local text = gui.FillingPan.FillText.Text
                     local a, b = text:match("([%d%.]+)/([%d%.]+)")
                     local current, max = tonumber(a), tonumber(b)
 
-                    if current and max and waterPos and farmPos then
+                    -- ตรวจสอบกระเป๋าเต็ม
+                    local invText = backpackGui and backpackGui.Backpack.Inventory.TopButtons.Unaffected.InventorySize.Text
+                    local ia, ib = invText and invText:match("(%d+)/(%d+)") or nil, nil
+                    local invCur, invMax = tonumber(ia), tonumber(ib)
+
+                    if invCur and invMax and invCur >= invMax and sellPos then
+                        -- วาร์ปไปขาย + ขายอัตโนมัติ
+                        Char.HumanoidRootPart.CFrame = sellPos
+                        statusLabel:Set("💰 สถานะ: กำลังขาย ("..invCur.."/"..invMax..")")
+                        task.wait(0.5)
+                        pcall(function()
+                            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                            ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll"):InvokeServer()
+                        end)
+                    elseif current and max and waterPos and farmPos then
                         if current >= max then
                             Char.HumanoidRootPart.CFrame = waterPos
                             statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
@@ -153,12 +169,12 @@ Tab_Main:CreateToggle({
                             statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
                         end
                     else
-                        statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำก่อน")
+                        statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำ/ขายก่อน")
                     end
                 end
             end
 
-            if not _G.AutoPanWarp then
+            if not _G.AutoFarm then
                 statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
             end
         end)
@@ -216,7 +232,7 @@ Tab_Main:CreateSlider({
 })
 
 ------------------------------------------------------------
--- 🎟️ ปุ่มใส่โค้ดทั้งหมด (อัปเดตใหม่)
+-- 🎟️ ปุ่มใส่โค้ดทั้งหมด
 ------------------------------------------------------------
 Tab_Main:CreateButton({
     Name = "🎟️ ใส่โค้ดทั้งหมด",
@@ -225,13 +241,8 @@ Tab_Main:CreateButton({
         local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
 
         local codes = {
-            "coolupdate",     -- NEW
-            "hundredmillion", -- NEW
-            "traveler",
-            "fossilized",
-            "sorrytwo",
-            "millions",
-            "updateone"
+            "coolupdate", "hundredmillion", "traveler",
+            "fossilized", "sorrytwo", "millions", "updateone"
         }
 
         task.spawn(function()
@@ -282,7 +293,7 @@ Tab_Credit:CreateLabel({
 })
 
 Tab_Credit:CreateLabel({
-    Text = "📌 อัปเดต V.2.14\n- รองรับทศนิยม FillText\n- เพิ่มปุ่ม 🔄 รีจอย\n- อัปเดตโค้ดใหม่ทั้งหมด",
+    Text = "📌 อัปเดต V.2.14p2\n- เปลี่ยนชื่อปุ่มเป็น 🤖 ออโต้ฟาร์ม\n- เพิ่มระบบขายอัตโนมัติ\n- เพิ่มปุ่มบันทึกจุดขาย",
     Style = 2
 })
 
