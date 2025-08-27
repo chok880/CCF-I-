@@ -1,197 +1,136 @@
--- ซีเค ฮับ V.2.16 - แก้บัคแล้ว + เร็วสุดโหด
--- เฟซบุ๊ค: มาปั่นเล็กน้อย
--- 📌 แก้ไขทุกบัค + ความเร็วสูงสุด + ไม่มี Error
+-- CK HUB V.2.14p2-fix
+-- fb: มาปั่นเล็กน้อย
+-- 📌 Patch2: AutoFarm + AutoSell + จุดขาย (แก้ระบบขายไม่ทำงาน)
 
 ------------------------------------------------------------
--- 📌 ตั้งค่าพื้นฐาน (แก้บัคแล้ว)
+-- 📌 ตั้งค่าพื้นฐาน
 ------------------------------------------------------------
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TeleportService = game:GetService("TeleportService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
-
 local LocalPlayer = Players.LocalPlayer
+local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 
--- ฟังก์ชันรอ Character ที่ปลอดภัย
-local function waitForCharacter()
-    local char = LocalPlayer.Character
-    if not char then
-        char = LocalPlayer.CharacterAdded:Wait()
-    end
-    return char
-end
+-- โหลด Luna UI
+local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"))()
 
-local Char = waitForCharacter()
+local Window = Luna:CreateWindow({
+    Name = "CK HUB ",
+    Subtitle = "V.2.14p2-fix",
+    LoadingEnabled = true,
+    LoadingTitle = "CK HUB",
+    LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
+    ConfigSettings = {
+        ConfigFolder = "CK HUB Config"
+    },
+    KeySystem = false
+})
 
--- โหลด UI แบบปลอดภัย (ไม่ใช้ HTTP)
-local Luna
-local success = pcall(function()
-    local lunaUrl = "https://raw.githubusercontent.com/Nebula-Softworks/Luna-Interface-Suite/refs/heads/master/source.lua"
-    Luna = loadstring(game:HttpGet(lunaUrl))()
-end)
+Window:CreateHomeTab({
+    SupportedExecutors = {
+        "Synapse X","Krnl","Fluxus","Script-Ware","xeno","Velocity",
+        "Delta","JJSploit","Proxo","EasyExploits","OxygenU",
+        "Comet","Electron","Arsenal","Calamari"
+    },
+    Icon = 1
+})
 
-if not success or not Luna then
-    -- สร้าง UI สำรองแทน
-    local ScreenGui = Instance.new("ScreenGui")
-    local Frame = Instance.new("Frame")
-    local TextLabel = Instance.new("TextLabel")
-    
-    ScreenGui.Name = "CK_HUB_Emergency"
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    
-    Frame.Size = UDim2.new(0, 400, 0, 300)
-    Frame.Position = UDim2.new(0.5, -200, 0.5, -150)
-    Frame.BackgroundColor3 = Color3.new(0, 0, 0)
-    Frame.BackgroundTransparency = 0.2
-    Frame.BorderSizePixel = 2
-    Frame.BorderColor3 = Color3.new(1, 1, 1)
-    Frame.Parent = ScreenGui
-    
-    TextLabel.Size = UDim2.new(1, 0, 1, 0)
-    TextLabel.BackgroundTransparency = 1
-    TextLabel.Text = "⚠️ กำลังใช้โหมดฉุกเฉิน\n🚀 ซีเค ฮับ V.2.16\n✅ แก้บัคแล้ว\n\n🎮 กด F9 เพื่อดูคำสั่ง"
-    TextLabel.TextColor3 = Color3.new(1, 1, 1)
-    TextLabel.TextScaled = true
-    TextLabel.Font = Enum.Font.GothamBold
-    TextLabel.Parent = Frame
-    
-    print("🚨 ใช้โหมดฉุกเฉิน - Luna UI โหลดไม่ได้")
-    print("📋 คำสั่งที่ใช้ได้:")
-    print("_G.StartAutoFarm() - เริ่มออโต้ฟาร์ม")
-    print("_G.StopAutoFarm() - หยุดออโต้ฟาร์ม")
-    print("_G.SetWalkSpeed(ค่า) - ตั้งความเร็ว")
-    print("_G.SaveFarmPos() - บันทึกจุดฟาร์ม")
-    print("_G.SaveWaterPos() - บันทึกจุดน้ำ")
-    print("_G.SaveSellPos() - บันทึกจุดขาย")
-    
-    -- สร้างระบบแทน Luna
-    _G.CK_HUB_Emergency = true
-else
-    -- ใช้ Luna UI ปกติ
-    local Window = Luna:CreateWindow({
-        Name = "ซีเค ฮับ เทอร์โบ",
-        Subtitle = "V.2.16 - แก้บัคแล้ว",
-        LoadingEnabled = true,
-        LoadingTitle = "ซีเค ฮับ เทอร์โบ",
-        LoadingSubtitle = "โดย เฟซบุ๊ค มาปั่นเล็กน้อย",
-        ConfigSettings = {
-            ConfigFolder = "CK_HUB_Config"
-        },
-        KeySystem = false
-    })
-
-    local Tab_Main = Window:CreateTab({
-        Name = "เมนูหลัก เทอร์โบ",
-        Icon = "flash_on",
-        ImageSource = "Material"
-    })
-end
+local Tab_Main = Window:CreateTab({
+    Name = "เมนูหลัก",
+    Icon = "view_in_ar",
+    ImageSource = "Material"
+})
 
 ------------------------------------------------------------
--- 📍 ตัวแปรสำคัญ
+-- 📍 ปุ่มบันทึกตำแหน่ง
 ------------------------------------------------------------
 local farmPos, waterPos, sellPos = nil, nil, nil
-local autoFarmRunning = false
-local antiAfkRunning = false
+local statusLabel
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดฟาร์ม",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        farmPos = Char.HumanoidRootPart.CFrame
+        print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
+    end
+})
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดน้ำ",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        waterPos = Char.HumanoidRootPart.CFrame
+        print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
+    end
+})
+
+Tab_Main:CreateButton({
+    Name = "💾 บันทึกจุดขาย",
+    Callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        sellPos = Char.HumanoidRootPart.CFrame
+        print("💰 บันทึกตำแหน่งขาย:", sellPos)
+    end
+})
 
 ------------------------------------------------------------
--- 🔧 ฟังก์ชันหลัก (แก้บัคแล้ว)
+-- 🤖 ออโต้ฟาร์ม (แพน + วาร์ป + ขายอัตโนมัติ)
 ------------------------------------------------------------
+statusLabel = Tab_Main:CreateLabel({
+    Text = "⚠️ สถานะ: รอเริ่มทำงาน...",
+    Style = 2
+})
 
--- ฟังก์ชันเทเลพอร์ตปลอดภัย
-local function safeTeleport(position)
-    if not position then return end
-    pcall(function()
-        local currentChar = waitForCharacter()
-        if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-            currentChar.HumanoidRootPart.CFrame = position
-        end
-    end)
-end
-
--- ฟังก์ชันตรวจสอบ Pan
-local function isPanTool(toolName)
-    if not toolName then return false end
-    return string.sub(toolName:lower(), -3) == "pan"
-end
-
--- ฟังก์ชันขายของ
-local function autoSell()
-    pcall(function()
-        local sellRemote = ReplicatedStorage:WaitForChild("Remotes", 5)
-        if sellRemote then
-            local shopRemote = sellRemote:WaitForChild("Shop", 2)
-            if shopRemote then
-                local sellAllRemote = shopRemote:WaitForChild("SellAll", 2)
-                if sellAllRemote then
-                    sellAllRemote:InvokeServer()
-                    print("💰 ขายของสำเร็จ!")
-                end
+Tab_Main:CreateToggle({
+    Name = "🤖 ออโต้ฟาร์ม",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AutoFarm = state
+        task.spawn(function()
+            local function isPan(toolName)
+                return string.sub(toolName, -3):lower() == "pan"
             end
-        end
-    end)
-end
 
--- ฟังก์ชันออโต้ฟาร์มหลัก
-local function startAutoFarm()
-    autoFarmRunning = true
-    print("🚀 เริ่มออโต้ฟาร์มเทอร์โบ!")
-    
-    task.spawn(function()
-        while autoFarmRunning do
-            pcall(function()
-                local currentChar = waitForCharacter()
-                if not currentChar then return end
-                
-                -- ทำงานกับ Pan Tools
-                local containers = {currentChar, LocalPlayer.Backpack}
+            while _G.AutoFarm and task.wait() do
+                Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+                -- ตรวจสอบ Pan + ทำงานอัตโนมัติ
+                local containers = {Char, LocalPlayer.Backpack}
                 for _, container in pairs(containers) do
-                    if container then
-                        for _, tool in pairs(container:GetChildren()) do
-                            if tool:IsA("Tool") and isPanTool(tool.Name) then
-                                local scriptsFolder = tool:FindFirstChild("Scripts")
-                                if scriptsFolder then
-                                    -- Collect
-                                    task.spawn(function()
-                                        local collect = scriptsFolder:FindFirstChild("Collect")
-                                        if collect and collect:IsA("RemoteFunction") then
-                                            pcall(function()
-                                                collect:InvokeServer(1)
-                                            end)
-                                        end
-                                    end)
+                    for _, tool in pairs(container:GetChildren()) do
+                        if tool:IsA("Tool") and isPan(tool.Name) then
+                            local scriptsFolder = tool:FindFirstChild("Scripts")
+                            if scriptsFolder then
+                                local collect = scriptsFolder:FindFirstChild("Collect")
+                                local pan = scriptsFolder:FindFirstChild("Pan")
+                                local shake = scriptsFolder:FindFirstChild("Shake")
 
-                                    -- Shake
-                                    task.spawn(function()
-                                        local shake = scriptsFolder:FindFirstChild("Shake")
-                                        if shake and shake:IsA("RemoteEvent") then
-                                            pcall(function()
-                                                shake:FireServer()
-                                            end)
-                                        end
-                                    end)
+                                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                                local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
 
-                                    -- Pan (เมื่อเต็ม)
-                                    task.spawn(function()
-                                        local gui = LocalPlayer.PlayerGui:FindFirstChild("ToolUI")
-                                        if gui and gui:FindFirstChild("FillingPan") then
-                                            local fillText = gui.FillingPan:FindFirstChild("FillText")
-                                            if fillText and fillText.Text then
-                                                local current, max = fillText.Text:match("([%d%.]+)/([%d%.]+)")
-                                                current, max = tonumber(current), tonumber(max)
-                                                
-                                                if current and max and current >= max then
-                                                    local pan = scriptsFolder:FindFirstChild("Pan")
-                                                    if pan and pan:IsA("RemoteFunction") then
-                                                        pcall(function()
-                                                            pan:InvokeServer()
-                                                        end)
-                                                    end
-                                                end
-                                            end
-                                        end
+                                local current, max = nil, nil
+                                if fillText and fillText.Text then
+                                    local a, b = fillText.Text:match("([%d%.]+)/([%d%.]+)")
+                                    current, max = tonumber(a), tonumber(b)
+                                end
+
+                                -- Collect
+                                if collect and collect:IsA("RemoteFunction") then
+                                    pcall(function()
+                                        collect:InvokeServer(1)
+                                    end)
+                                end
+
+                                -- Pan (เฉพาะตอนเต็ม)
+                                if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
+                                    pcall(function()
+                                        pan:InvokeServer()
+                                    end)
+                                end
+
+                                -- Shake
+                                if shake and shake:IsA("RemoteEvent") then
+                                    pcall(function()
+                                        shake:FireServer()
                                     end)
                                 end
                             end
@@ -199,231 +138,174 @@ local function startAutoFarm()
                     end
                 end
 
-                -- ระบบเคลื่อนที่อัตโนมัติ
-                task.spawn(function()
+                -- ตรวจสอบค่าหลอด + ฟาร์ม/น้ำ/ขาย
+                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                local backpackGui = LocalPlayer.PlayerGui:FindFirstChild("BackpackGui")
+                if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
+                    local text = gui.FillingPan.FillText.Text
+                    local a, b = text:match("([%d%.]+)/([%d%.]+)")
+                    local current, max = tonumber(a), tonumber(b)
+
                     -- ตรวจสอบกระเป๋าเต็ม
-                    local backpackGui = LocalPlayer.PlayerGui:FindFirstChild("BackpackGui")
-                    if backpackGui then
-                        local invPath = backpackGui:FindFirstChild("Backpack")
-                        if invPath and invPath:FindFirstChild("Inventory") then
-                            local topButtons = invPath.Inventory:FindFirstChild("TopButtons")
-                            if topButtons and topButtons:FindFirstChild("Unaffected") then
-                                local invSize = topButtons.Unaffected:FindFirstChild("InventorySize")
-                                if invSize and invSize.Text then
-                                    local invCur, invMax = invSize.Text:match("(%d+)/(%d+)")
-                                    invCur, invMax = tonumber(invCur), tonumber(invMax)
+                    local invText = backpackGui and backpackGui.Backpack.Inventory.TopButtons.Unaffected.InventorySize.Text
+                    if invText then
+                        local ia, ib = invText:match("(%d+)/(%d+)")
+                        local invCur, invMax = tonumber(ia), tonumber(ib)
 
-                                    if invCur and invMax and invCur >= invMax and sellPos then
-                                        print("💰 กระเป๋าเต็ม! ไปขาย...")
-                                        safeTeleport(sellPos)
-                                        task.wait(0.5)
-                                        autoSell()
-                                        task.wait(0.5)
-                                        return
-                                    end
+                        if invCur and invMax and invCur >= invMax and sellPos then
+                            -- วาร์ปไปขาย + ขายอัตโนมัติ
+                            Char.HumanoidRootPart.CFrame = sellPos
+                            statusLabel:Set("💰 สถานะ: กำลังขาย ("..invCur.."/"..invMax..")")
+                            task.wait(0.5)
+                            pcall(function()
+                                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                                local sellRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll")
+                                if sellRemote:IsA("RemoteFunction") then
+                                    sellRemote:InvokeServer()
+                                elseif sellRemote:IsA("RemoteEvent") then
+                                    sellRemote:FireServer()
                                 end
+                            end)
+                        elseif current and max and waterPos and farmPos then
+                            if current >= max then
+                                Char.HumanoidRootPart.CFrame = waterPos
+                                statusLabel:Set("💧 สถานะ: กำลังล่อนแร่ (เต็ม)")
+                            else
+                                Char.HumanoidRootPart.CFrame = farmPos
+                                statusLabel:Set("⛏️ สถานะ: กำลังฟาร์ม ("..current.."/"..max..")")
                             end
+                        else
+                            statusLabel:Set("⚠️ กรุณาบันทึกจุดฟาร์ม/น้ำ/ขายก่อน")
                         end
                     end
-
-                    -- ระบบฟาร์ม/น้ำ
-                    local toolGui = LocalPlayer.PlayerGui:FindFirstChild("ToolUI")
-                    if toolGui and toolGui:FindFirstChild("FillingPan") then
-                        local fillText = toolGui.FillingPan:FindFirstChild("FillText")
-                        if fillText and fillText.Text and waterPos and farmPos then
-                            local current, max = fillText.Text:match("([%d%.]+)/([%d%.]+)")
-                            current, max = tonumber(current), tonumber(max)
-
-                            if current and max then
-                                if current >= max then
-                                    safeTeleport(waterPos)
-                                    print("💧 ไปล้างแร่...")
-                                else
-                                    safeTeleport(farmPos)
-                                    print("⛏️ กำลังฟาร์ม... ("..current.."/"..max..")")
-                                end
-                            end
-                        end
-                    end
-                end)
-            end)
-            
-            task.wait(0) -- ความเร็วสูงสุด!
-        end
-    end)
-end
-
--- ฟังก์ชันหยุดออโต้ฟาร์ม
-local function stopAutoFarm()
-    autoFarmRunning = false
-    print("⏹️ หยุดออโต้ฟาร์มแล้ว")
-end
-
-------------------------------------------------------------
--- 🎮 UI Controls (ถ้าโหลด Luna สำเร็จ)
-------------------------------------------------------------
-if Luna and Tab_Main then
-    -- ปุ่มบันทึกตำแหน่ง
-    Tab_Main:CreateButton({
-        Name = "📍 บันทึกจุดฟาร์ม",
-        Callback = function()
-            local currentChar = waitForCharacter()
-            if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-                farmPos = currentChar.HumanoidRootPart.CFrame
-                print("📍 บันทึกจุดฟาร์มแล้ว!")
-            end
-        end
-    })
-
-    Tab_Main:CreateButton({
-        Name = "💧 บันทึกจุดน้ำ",
-        Callback = function()
-            local currentChar = waitForCharacter()
-            if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-                waterPos = currentChar.HumanoidRootPart.CFrame
-                print("💧 บันทึกจุดน้ำแล้ว!")
-            end
-        end
-    })
-
-    Tab_Main:CreateButton({
-        Name = "💰 บันทึกจุดขาย",
-        Callback = function()
-            local currentChar = waitForCharacter()
-            if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-                sellPos = currentChar.HumanoidRootPart.CFrame
-                print("💰 บันทึกจุดขายแล้ว!")
-            end
-        end
-    })
-
-    -- ออโต้ฟาร์ม
-    Tab_Main:CreateToggle({
-        Name = "🚀 ออโต้ฟาร์มเทอร์โบ (เร็วสุดโหด)",
-        CurrentValue = false,
-        Callback = function(state)
-            if state then
-                startAutoFarm()
-            else
-                stopAutoFarm()
-            end
-        end
-    })
-
-    -- ความเร็ว
-    Tab_Main:CreateSlider({
-        Name = "💨 ความเร็วสุดโหด",
-        Range = {16, 1000},
-        Increment = 10,
-        CurrentValue = 16,
-        Callback = function(value)
-            task.spawn(function()
-                while task.wait(0.1) do
-                    local currentChar = waitForCharacter()
-                    if currentChar and currentChar:FindFirstChild("Humanoid") then
-                        currentChar.Humanoid.WalkSpeed = value
-                    end
-                    if not autoFarmRunning then break end
                 end
-            end)
-        end
-    })
-
-    -- Anti-AFK
-    Tab_Main:CreateToggle({
-        Name = "⚡ ป้องกันหลุด (เร็ว)",
-        CurrentValue = false,
-        Callback = function(state)
-            antiAfkRunning = state
-            if state then
-                task.spawn(function()
-                    while antiAfkRunning do
-                        pcall(function()
-                            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-                            task.wait(0.01)
-                            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
-                        end)
-                        task.wait(30)
-                    end
-                end)
             end
-        end
-    })
 
-    -- ใส่โค้ด
-    Tab_Main:CreateButton({
-        Name = "🎯 ใส่โค้ดทั้งหมด",
-        Callback = function()
-            local codes = {
-                "coolupdate", "hundredmillion", "traveler", "fossilized", 
-                "sorrytwo", "millions", "updateone"
-            }
+            if not _G.AutoFarm then
+                statusLabel:Set("⏹️ สถานะ: หยุดทำงาน")
+            end
+        end)
+    end
+})
 
+------------------------------------------------------------
+-- ⏳ ป้องกันหลุด (AFK)
+------------------------------------------------------------
+Tab_Main:CreateToggle({
+    Name = "⏳ ป้องกันการหลุด (Anti AFK)",
+    CurrentValue = false,
+    Callback = function(state)
+        _G.AntiAFK = state
+        if state then
+            local VirtualInputManager = game:GetService("VirtualInputManager")
             task.spawn(function()
-                for _, code in pairs(codes) do
-                    pcall(function()
-                        local claimRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
-                        claimRemote:FireServer(code)
-                        print("✅ ใส่โค้ด: " .. code)
-                    end)
+                while _G.AntiAFK and task.wait(60) do
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
                     task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
                 end
-                print("🎉 ใส่โค้ดทั้งหมดเสร็จแล้ว!")
             end)
         end
-    })
-end
+    end
+})
 
 ------------------------------------------------------------
--- 🌐 Global Functions (ใช้ได้ทุกโหมด)
+-- 🏃 ความเร็ว และ กระโดด
 ------------------------------------------------------------
-_G.StartAutoFarm = startAutoFarm
-_G.StopAutoFarm = stopAutoFarm
+local Humanoid = Char:WaitForChild("Humanoid")
 
-_G.SaveFarmPos = function()
-    local currentChar = waitForCharacter()
-    if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-        farmPos = currentChar.HumanoidRootPart.CFrame
-        print("📍 บันทึกจุดฟาร์มแล้ว!")
+Tab_Main:CreateSlider({
+    Name = "🏃 ความเร็ว (WalkSpeed)",
+    Range = {16, 200},
+    Increment = 1,
+    CurrentValue = Humanoid.WalkSpeed,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = value
+        end
     end
-end
+})
 
-_G.SaveWaterPos = function()
-    local currentChar = waitForCharacter()
-    if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-        waterPos = currentChar.HumanoidRootPart.CFrame
-        print("💧 บันทึกจุดน้ำแล้ว!")
+Tab_Main:CreateSlider({
+    Name = "🦘 กระโดดสูง (JumpPower)",
+    Range = {50, 500},
+    Increment = 5,
+    CurrentValue = Humanoid.JumpPower,
+    Callback = function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.JumpPower = value
+        end
     end
-end
-
-_G.SaveSellPos = function()
-    local currentChar = waitForCharacter()
-    if currentChar and currentChar:FindFirstChild("HumanoidRootPart") then
-        sellPos = currentChar.HumanoidRootPart.CFrame
-        print("💰 บันทึกจุดขายแล้ว!")
-    end
-end
-
-_G.SetWalkSpeed = function(speed)
-    local currentChar = waitForCharacter()
-    if currentChar and currentChar:FindFirstChild("Humanoid") then
-        currentChar.Humanoid.WalkSpeed = speed
-        print("💨 ตั้งความเร็ว: " .. speed)
-    end
-end
+})
 
 ------------------------------------------------------------
--- 🔄 จัดการ Character ใหม่
+-- 🎟️ ปุ่มใส่โค้ดทั้งหมด
 ------------------------------------------------------------
+Tab_Main:CreateButton({
+    Name = "🎟️ ใส่โค้ดทั้งหมด",
+    Callback = function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
+
+        local codes = {
+            "coolupdate", "hundredmillion", "traveler",
+            "fossilized", "sorrytwo", "millions", "updateone"
+        }
+
+        task.spawn(function()
+            for _, code in ipairs(codes) do
+                pcall(function()
+                    ClaimCode:FireServer(code)
+                    print("✅ ส่งโค้ดสำเร็จ:", code)
+                end)
+                task.wait(0.5)
+            end
+            print("🎉 ส่งโค้ดทั้งหมดเรียบร้อยแล้ว!")
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 🔄 ปุ่มรีจอย
+------------------------------------------------------------
+Tab_Main:CreateButton({
+    Name = "🔄 รีจอยแมพ",
+    Callback = function()
+        local TeleportService = game:GetService("TeleportService")
+        local placeId = game.PlaceId
+        local jobId = game.JobId
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 💳 เครดิต
+------------------------------------------------------------
+local Tab_Credit = Window:CreateTab({
+    Name = "เครดิต",
+    Icon = "info",
+    ImageSource = "Material"
+})
+
+Tab_Credit:CreateLabel({
+    Text = "ถ้าบัคออกเเมพเข้าใหม่",
+    Style = 2
+})
+
+Tab_Credit:CreateLabel({
+    Text = "เครดิต fb มาปั่นเล็กน้อย",
+    Style = 2
+})
+
+Tab_Credit:CreateLabel({
+    Text = "📌 อัปเดต V.2.14p2-fix\n- แก้ระบบขายไม่ทำงาน\n- รองรับทั้ง RemoteFunction / RemoteEvent\n- ปรับ regex inventory ไม่ให้ error",
+    Style = 2
+})
+
+-- 📌 อัพเดท Character เมื่อเกิดใหม่
 LocalPlayer.CharacterAdded:Connect(function(newChar)
-    task.wait(1)
     Char = newChar
-    print("🔄 ตัวละครใหม่โหลดแล้ว")
+    task.wait(1)
 end)
-
-print("✅ ซีเค ฮับ V.2.16 โหลดสำเร็จ!")
-print("🚀 แก้บัคแล้ว + ความเร็วสูงสุด!")
-
-if _G.CK_HUB_Emergency then
-    print("🚨 โหมดฉุกเฉิน - ใช้คำสั่ง Global Functions")
-end
