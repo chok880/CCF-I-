@@ -1,6 +1,6 @@
--- CK HUB V.2.14p2-fix
+-- CK HUB V.2.14p2-fix2
 -- fb: มาปั่นเล็กน้อย
--- 📌 Patch2: AutoFarm + AutoSell + จุดขาย (แก้ระบบขายไม่ทำงาน)
+-- 📌 Patch2: AutoFarm + AutoSell + จุดขาย
 
 ------------------------------------------------------------
 -- 📌 ตั้งค่าพื้นฐาน
@@ -14,7 +14,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.14p2-fix",
+    Subtitle = "V.2.14p2",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -159,12 +159,7 @@ Tab_Main:CreateToggle({
                             task.wait(0.5)
                             pcall(function()
                                 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                                local sellRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll")
-                                if sellRemote:IsA("RemoteFunction") then
-                                    sellRemote:InvokeServer()
-                                elseif sellRemote:IsA("RemoteEvent") then
-                                    sellRemote:FireServer()
-                                end
+                                ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll"):InvokeServer()
                             end)
                         elseif current and max and waterPos and farmPos then
                             if current >= max then
@@ -300,7 +295,7 @@ Tab_Credit:CreateLabel({
 })
 
 Tab_Credit:CreateLabel({
-    Text = "📌 อัปเดต V.2.14p2-fix\n- แก้ระบบขายไม่ทำงาน\n- รองรับทั้ง RemoteFunction / RemoteEvent\n- ปรับ regex inventory ไม่ให้ error",
+    Text = "📌 อัปเดต V.2.14p2\n- เปลี่ยนชื่อปุ่มเป็น 🤖 ออโต้ฟาร์ม\n- เพิ่มระบบขายอัตโนมัติ\n- เพิ่มปุ่มบันทึกจุดขาย",
     Style = 2
 })
 
