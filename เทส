@@ -1,6 +1,6 @@
--- CK HUB V.2.14p2-fix2
+-- CK HUB V.2.14p3
 -- fb: มาปั่นเล็กน้อย
--- 📌 Patch2: AutoFarm + AutoSell + จุดขาย
+-- 📌 Patch3: AutoFarm + AutoSell + เลือกโหมดเคลื่อนที่ตอนขาย
 
 ------------------------------------------------------------
 -- 📌 ตั้งค่าพื้นฐาน
@@ -14,7 +14,7 @@ local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/Nebula-S
 
 local Window = Luna:CreateWindow({
     Name = "CK HUB ",
-    Subtitle = "V.2.14p2",
+    Subtitle = "V.2.14p3",
     LoadingEnabled = true,
     LoadingTitle = "CK HUB",
     LoadingSubtitle = "โดย fb มาปั่นเล็กน้อย",
@@ -73,6 +73,49 @@ Tab_Main:CreateButton({
 })
 
 ------------------------------------------------------------
+-- 🛫 เลือกโหมดเคลื่อนที่ (ใช้เฉพาะตอนขาย)
+------------------------------------------------------------
+local SellMoveMode = "Teleport" -- ค่าเริ่มต้น
+
+Tab_Main:CreateDropdown({
+    Name = "🛫 โหมดเคลื่อนที่ (ตอนขาย)",
+    Options = {"Teleport","Fly"},
+    CurrentOption = "Teleport",
+    Callback = function(option)
+        SellMoveMode = option
+        print("✅ เลือกโหมดเคลื่อนที่ตอนขาย:", SellMoveMode)
+    end
+})
+
+-- ฟังก์ชันบินไปตำแหน่ง
+local function flyTo(targetCFrame)
+    local hrp = Char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local bp = Instance.new("BodyPosition", hrp)
+    bp.MaxForce = Vector3.new(400000, 400000, 400000)
+    bp.Position = targetCFrame.Position
+
+    local bg = Instance.new("BodyGyro", hrp)
+    bg.MaxTorque = Vector3.new(400000, 400000, 400000)
+    bg.CFrame = targetCFrame
+
+    task.delay(1, function()
+        bp:Destroy()
+        bg:Destroy()
+    end)
+end
+
+-- ฟังก์ชันย้ายไปขาย
+local function moveToSell(posCFrame)
+    if SellMoveMode == "Teleport" then
+        Char.HumanoidRootPart.CFrame = posCFrame
+    elseif SellMoveMode == "Fly" then
+        flyTo(posCFrame)
+    end
+end
+
+------------------------------------------------------------
 -- 🤖 ออโต้ฟาร์ม (แพน + วาร์ป + ขายอัตโนมัติ)
 ------------------------------------------------------------
 statusLabel = Tab_Main:CreateLabel({
@@ -113,21 +156,18 @@ Tab_Main:CreateToggle({
                                     current, max = tonumber(a), tonumber(b)
                                 end
 
-                                -- Collect
                                 if collect and collect:IsA("RemoteFunction") then
                                     pcall(function()
                                         collect:InvokeServer(1)
                                     end)
                                 end
 
-                                -- Pan (เฉพาะตอนเต็ม)
                                 if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
                                     pcall(function()
                                         pan:InvokeServer()
                                     end)
                                 end
 
-                                -- Shake
                                 if shake and shake:IsA("RemoteEvent") then
                                     pcall(function()
                                         shake:FireServer()
@@ -146,15 +186,14 @@ Tab_Main:CreateToggle({
                     local a, b = text:match("([%d%.]+)/([%d%.]+)")
                     local current, max = tonumber(a), tonumber(b)
 
-                    -- ตรวจสอบกระเป๋าเต็ม
                     local invText = backpackGui and backpackGui.Backpack.Inventory.TopButtons.Unaffected.InventorySize.Text
                     if invText then
                         local ia, ib = invText:match("(%d+)/(%d+)")
                         local invCur, invMax = tonumber(ia), tonumber(ib)
 
                         if invCur and invMax and invCur >= invMax and sellPos then
-                            -- วาร์ปไปขาย + ขายอัตโนมัติ
-                            Char.HumanoidRootPart.CFrame = sellPos
+                            -- ✅ ใช้ moveToSell ตอนขายเท่านั้น
+                            moveToSell(sellPos)
                             statusLabel:Set("💰 สถานะ: กำลังขาย ("..invCur.."/"..invMax..")")
                             task.wait(0.5)
                             pcall(function()
@@ -295,7 +334,7 @@ Tab_Credit:CreateLabel({
 })
 
 Tab_Credit:CreateLabel({
-    Text = "📌 อัปเดต V.2.14p2\n- เปลี่ยนชื่อปุ่มเป็น 🤖 ออโต้ฟาร์ม\n- เพิ่มระบบขายอัตโนมัติ\n- เพิ่มปุ่มบันทึกจุดขาย",
+    Text = "📌 อัปเดต V.2.14p3\n- เลือกโหมดเคลื่อนที่เฉพาะตอนขาย (Teleport/Fly)\n- ระบบฟาร์ม/น้ำยังใช้วาร์ปเหมือนเดิม",
     Style = 2
 })
 
