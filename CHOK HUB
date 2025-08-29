@@ -1,7 +1,7 @@
 -- 📌 ตารางสคริปต์สำหรับแต่ละ PlaceId
 local AutoScripts = {
     [131716211654599] = "https://raw.githubusercontent.com/chok880/CCF-I-/main/Fisch%20Script",
-    [129827112113663] = "https://raw.githubusercontent.com/chok880/CCF-I-/refs/heads/main/Prospecting"
+    [129827112113663] = "https://raw.githubusercontent.com/chok880/CCF-I-/refs/heads/main/เทส"
 }
 
 -- 📌 ฟังก์ชันโหลดสคริปต์อัตโนมัติ
