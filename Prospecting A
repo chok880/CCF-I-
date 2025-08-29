@@ -1,0 +1,363 @@
+-- https://github.com/BloodLetters/Ash-Libs
+local GUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/BloodLetters/Ash-Libs/refs/heads/main/source.lua"))()
+-- fb: มาปั่นเล็กน้อย
+-- 📌 Patch2: AutoFarm + AutoSell + จุดขาย
+
+------------------------------------------------------------
+-- 📌 ตั้งค่าพื้นฐาน
+------------------------------------------------------------
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+-- สร้าง GUI หลัก
+GUI:CreateMain({
+    Name = "CK HUB",
+    title = "CK HUB V.2.14p2",
+    ToggleUI = "K",
+    WindowIcon = "home",
+    Theme = {
+        Background = Color3.fromRGB(25, 25, 35),
+        Secondary = Color3.fromRGB(35, 35, 45),
+        Accent = Color3.fromRGB(138, 43, 226),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextSecondary = Color3.fromRGB(180, 180, 180),
+        Border = Color3.fromRGB(50, 50, 60),
+        NavBackground = Color3.fromRGB(20, 20, 30)
+    },
+    Blur = {
+        Enable = false,
+        value = 0.2
+    },
+    Config = {
+        Enabled = false,
+    }
+})
+
+local main = GUI:CreateTab("เมนูหลัก", "home")
+
+------------------------------------------------------------
+-- 📍 ส่วนบันทึกตำแหน่ง
+------------------------------------------------------------
+local farmPos, waterPos, sellPos = nil, nil, nil
+
+GUI:CreateSection({
+    parent = main, 
+    text = "📍 บันทึกตำแหน่ง"
+})
+
+GUI:CreateButton({
+    parent = main, 
+    text = "💾 บันทึกจุดฟาร์ม", 
+    callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        farmPos = Char.HumanoidRootPart.CFrame
+        print("📍 บันทึกตำแหน่งฟาร์ม:", farmPos)
+        GUI:CreateNotify({
+            title = "บันทึกสำเร็จ",
+            description = "บันทึกจุดฟาร์มแล้ว"
+        })
+    end
+})
+
+GUI:CreateButton({
+    parent = main, 
+    text = "💾 บันทึกจุดน้ำ", 
+    callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        waterPos = Char.HumanoidRootPart.CFrame
+        print("💧 บันทึกตำแหน่งน้ำ:", waterPos)
+        GUI:CreateNotify({
+            title = "บันทึกสำเร็จ",
+            description = "บันทึกจุดน้ำแล้ว"
+        })
+    end
+})
+
+GUI:CreateButton({
+    parent = main, 
+    text = "💾 บันทึกจุดขาย", 
+    callback = function()
+        Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        sellPos = Char.HumanoidRootPart.CFrame
+        print("💰 บันทึกตำแหน่งขาย:", sellPos)
+        GUI:CreateNotify({
+            title = "บันทึกสำเร็จ",
+            description = "บันทึกจุดขายแล้ว"
+        })
+    end
+})
+
+------------------------------------------------------------
+-- 🤖 ส่วนออโต้ฟาร์ม
+------------------------------------------------------------
+GUI:CreateSection({
+    parent = main, 
+    text = "🤖 ระบบออโต้ฟาร์ม"
+})
+
+local statusParagraph = GUI:CreateParagraph({
+    parent = main, 
+    text = "⚠️ สถานะ: รอเริ่มทำงาน..."
+})
+
+GUI:CreateToggle({
+    parent = main, 
+    text = "🤖 ออโต้ฟาร์ม", 
+    default = false, 
+    callback = function(state)
+        _G.AutoFarm = state
+        if state then
+            GUI:CreateNotify({
+                title = "เริ่มทำงาน",
+                description = "ออโต้ฟาร์มเริ่มทำงานแล้ว"
+            })
+        else
+            GUI:CreateNotify({
+                title = "หยุดทำงาน",
+                description = "ออโต้ฟาร์มหยุดทำงานแล้ว"
+            })
+        end
+        
+        task.spawn(function()
+            local function isPan(toolName)
+                return string.sub(toolName, -3):lower() == "pan"
+            end
+
+            while _G.AutoFarm and task.wait() do
+                Char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+
+                -- ตรวจสอบ Pan + ทำงานอัตโนมัติ
+                local containers = {Char, LocalPlayer.Backpack}
+                for _, container in pairs(containers) do
+                    for _, tool in pairs(container:GetChildren()) do
+                        if tool:IsA("Tool") and isPan(tool.Name) then
+                            local scriptsFolder = tool:FindFirstChild("Scripts")
+                            if scriptsFolder then
+                                local collect = scriptsFolder:FindFirstChild("Collect")
+                                local pan = scriptsFolder:FindFirstChild("Pan")
+                                local shake = scriptsFolder:FindFirstChild("Shake")
+
+                                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                                local fillText = gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText")
+
+                                local current, max = nil, nil
+                                if fillText and fillText.Text then
+                                    local a, b = fillText.Text:match("([%d%.]+)/([%d%.]+)")
+                                    current, max = tonumber(a), tonumber(b)
+                                end
+
+                                -- Collect
+                                if collect and collect:IsA("RemoteFunction") then
+                                    pcall(function()
+                                        collect:InvokeServer(1)
+                                    end)
+                                end
+
+                                -- Pan (เฉพาะตอนเต็ม)
+                                if pan and pan:IsA("RemoteFunction") and current and max and current >= max then
+                                    pcall(function()
+                                        pan:InvokeServer()
+                                    end)
+                                end
+
+                                -- Shake
+                                if shake and shake:IsA("RemoteEvent") then
+                                    pcall(function()
+                                        shake:FireServer()
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- ตรวจสอบค่าหลอด + ฟาร์ม/น้ำ/ขาย
+                local gui = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("ToolUI")
+                local backpackGui = LocalPlayer.PlayerGui:FindFirstChild("BackpackGui")
+                if gui and gui:FindFirstChild("FillingPan") and gui.FillingPan:FindFirstChild("FillText") then
+                    local text = gui.FillingPan.FillText.Text
+                    local a, b = text:match("([%d%.]+)/([%d%.]+)")
+                    local current, max = tonumber(a), tonumber(b)
+
+                    -- ตรวจสอบกระเป๋าเต็ม
+                    local invText = backpackGui and backpackGui.Backpack.Inventory.TopButtons.Unaffected.InventorySize.Text
+                    if invText then
+                        local ia, ib = invText:match("(%d+)/(%d+)")
+                        local invCur, invMax = tonumber(ia), tonumber(ib)
+
+                        if invCur and invMax and invCur >= invMax and sellPos then
+                            -- วาร์ปไปขาย + ขายอัตโนมัติ
+                            Char.HumanoidRootPart.CFrame = sellPos
+                            task.wait(0.5)
+                            pcall(function()
+                                local ReplicatedStorage = game:GetService("ReplicatedStorage")
+                                ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Shop"):WaitForChild("SellAll"):InvokeServer()
+                            end)
+                        elseif current and max and waterPos and farmPos then
+                            if current >= max then
+                                Char.HumanoidRootPart.CFrame = waterPos
+                            else
+                                Char.HumanoidRootPart.CFrame = farmPos
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+})
+
+GUI:CreateToggle({
+    parent = main, 
+    text = "⏳ ป้องกันการหลุด (Anti AFK)", 
+    default = false, 
+    callback = function(state)
+        _G.AntiAFK = state
+        if state then
+            GUI:CreateNotify({
+                title = "Anti AFK",
+                description = "เปิดป้องกันการหลุดแล้ว"
+            })
+            local VirtualInputManager = game:GetService("VirtualInputManager")
+            task.spawn(function()
+                while _G.AntiAFK and task.wait(60) do
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+                end
+            end)
+        else
+            GUI:CreateNotify({
+                title = "Anti AFK",
+                description = "ปิดป้องกันการหลุดแล้ว"
+            })
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 🏃 ส่วนการเคลื่อนไหว
+------------------------------------------------------------
+GUI:CreateSection({
+    parent = main, 
+    text = "🏃 การเคลื่อนไหว"
+})
+
+local Humanoid = Char:WaitForChild("Humanoid")
+
+GUI:CreateSlider({
+    parent = main, 
+    text = "🏃 ความเร็ว (WalkSpeed)", 
+    min = 16, 
+    max = 200, 
+    default = Humanoid.WalkSpeed, 
+    function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.WalkSpeed = value
+        end
+    end
+})
+
+GUI:CreateSlider({
+    parent = main, 
+    text = "🦘 กระโดดสูง (JumpPower)", 
+    min = 50, 
+    max = 500, 
+    default = Humanoid.JumpPower, 
+    function(value)
+        if Char and Char:FindFirstChild("Humanoid") then
+            Char.Humanoid.JumpPower = value
+        end
+    end
+})
+
+------------------------------------------------------------
+-- 🎟️ ส่วนเสริม
+------------------------------------------------------------
+GUI:CreateSection({
+    parent = main, 
+    text = "🎟️ เครื่องมือเสริม"
+})
+
+GUI:CreateButton({
+    parent = main, 
+    text = "🎟️ ใส่โค้ดทั้งหมด", 
+    callback = function()
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local ClaimCode = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("ClaimCode")
+
+        local codes = {
+            "coolupdate", "hundredmillion", "traveler",
+            "fossilized", "sorrytwo", "millions", "updateone"
+        }
+
+        task.spawn(function()
+            local successCount = 0
+            for _, code in ipairs(codes) do
+                pcall(function()
+                    ClaimCode:FireServer(code)
+                    print("✅ ส่งโค้ดสำเร็จ:", code)
+                    successCount = successCount + 1
+                end)
+                task.wait(0.5)
+            end
+            GUI:CreateNotify({
+                title = "เรียบร้อย",
+                description = "ส่งโค้ด " .. successCount .. "/" .. #codes .. " รายการแล้ว"
+            })
+        end)
+    end
+})
+
+GUI:CreateButton({
+    parent = main, 
+    text = "🔄 รีจอยแมพ", 
+    callback = function()
+        GUI:CreateNotify({
+            title = "กำลังรีจอย",
+            description = "กำลังเข้าเซิร์ฟเวอร์ใหม่..."
+        })
+        local TeleportService = game:GetService("TeleportService")
+        local placeId = game.PlaceId
+        local jobId = game.JobId
+        pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, LocalPlayer)
+        end)
+    end
+})
+
+------------------------------------------------------------
+-- 💳 แท็บเครดิต
+------------------------------------------------------------
+local credit = GUI:CreateTab("เครดิต", "info")
+
+GUI:CreateSection({
+    parent = credit, 
+    text = "📝 ข้อมูลสคริปต์"
+})
+
+GUI:CreateParagraph({
+    parent = credit, 
+    text = "ถ้าบัคออกเเมพเข้าใหม่"
+})
+
+GUI:CreateDivider({
+    parent = credit
+})
+
+GUI:CreateParagraph({
+    parent = credit, 
+    text = "เครดิต: fb มาปั่นเล็กน้อย"
+})
+
+GUI:CreateParagraph({
+    parent = credit, 
+    text = "📌 อัปเดต V.2.14p2 - เปลี่ยนชื่อปุ่มเป็น 🤖 ออโต้ฟาร์ม - เพิ่มระบบขายอัตโนมัติ - เพิ่มปุ่มบันทึกจุดขาย - เปลี่ยน UI เป็น Ash-Libs"
+})
+
+-- 📌 อัพเดท Character เมื่อเกิดใหม่
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Char = newChar
+    task.wait(1)
+end)
