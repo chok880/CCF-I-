@@ -1,145 +1,149 @@
--- Services
-local TweenService = game:GetService("TweenService")
+getgenv().AutoFarm = true
+_G.FastAttack = true
+
 local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local charHRP = character:WaitForChild("HumanoidRootPart")
-
--- UI สำหรับเปิด/ปิดระบบ
-local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-gui.Name = "AutoFarmUI"
-
-local toggleButton = Instance.new("TextButton", gui)
-toggleButton.Size = UDim2.new(0, 180, 0, 50)
-toggleButton.Position = UDim2.new(0, 20, 0, 100)
-toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.TextSize = 18
-toggleButton.Font = Enum.Font.SourceSansBold
-toggleButton.Text = "เปิดระบบออโต้ฟาร์ม"
-toggleButton.BorderSizePixel = 0
-
-local enabled = false
-toggleButton.MouseButton1Click:Connect(function()
-	enabled = not enabled
-	if enabled then
-		toggleButton.Text = "ปิดระบบออโต้ฟาร์ม"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-	else
-		toggleButton.Text = "เปิดระบบออโต้ฟาร์ม"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-	end
-end)
-
--- พิกัดเควส
-local questPositions = {
-	{levelMin = 1, levelMax = 9, pos = CFrame.new(1061.67, 16.51, 1544.52), quest = {"StartQuest", "BanditQuest1", 1}},
-	{levelMin = 10, levelMax = 14, pos = CFrame.new(-1604.12, 36.85, 154.23), quest = {"StartQuest", "JungleQuest", 1}},
-	{levelMin = 15, levelMax = 29, pos = CFrame.new(-1200.44, 8.02, -449.05), quest = {"StartQuest", "JungleQuest", 2}},
-	{levelMin = 30, levelMax = 39, pos = CFrame.new(-1139.59, 4.75, 3825.16), quest = {"StartQuest", "PirateQuest1", 1}},
-}
-
--- ฟังก์ชันบินไปหาเป้าหมาย
-local function flyToTarget(targetPosition)
-	local targetCFrame = CFrame.new(targetPosition + Vector3.new(0, 10, 0))
-	local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Linear)
-	local tween = TweenService:Create(charHRP, tweenInfo, {CFrame = targetCFrame})
-	tween:Play()
-end
-
--- ฟังก์ชันหา Enemy ตามเลเวล
-local function findClosestEnemyByLevel(level)
-	local closestEnemy = nil
-	local minDistance = math.huge
-
-	for _, enemy in ipairs(workspace.Enemies:GetChildren()) do
-		local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-		local enemyHumanoid = enemy:FindFirstChild("Humanoid")
-
-		if enemyHRP and enemyHumanoid and enemyHumanoid.Health > 0 then
-			if (level <= 9 and enemy.Name == "Bandit")
-			or (level >= 10 and level <= 14 and enemy.Name == "Monkey")
-			or (level >= 15 and level <= 29 and enemy.Name == "Gorilla")
-			or (level >= 30 and level <= 39 and enemy.Name == "Pirate") then
-				local distance = (charHRP.Position - enemyHRP.Position).Magnitude
-				if distance < minDistance then
-					minDistance = distance
-					closestEnemy = enemy
-				end
-			end
-		end
-	end
-
-	return closestEnemy
-end
-
--- Fast Attack ระบบโจมตี
-local FastAttack = true
-local Net = game:GetService("ReplicatedStorage"):WaitForChild("Modules"):WaitForChild("Net")
-local RegAttack = Net:WaitForChild("RE"):WaitForChild("RegisterAttack")
-local RegHit = Net:WaitForChild("RE"):WaitForChild("RegisterHit")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Enemies = workspace:WaitForChild("Enemies")
+local CommF_ = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("CommF_")
+local RegAttack = ReplicatedStorage.Modules.Net["RE/RegisterAttack"]
+local RegHit = ReplicatedStorage.Modules.Net["RE/RegisterHit"]
 
-task.defer(function()
-	while FastAttack do
-		pcall(function()
-			local Char = player.Character
-			if not Char then return end
+local function getCharacter()
+    return player.Character or player.CharacterAdded:Wait()
+end
 
-			local HR = Char:FindFirstChild("HumanoidRootPart")
-			local Head = Char:FindFirstChild("Head") or HR
-			if not HR then return end
+local function fastAttackLoop()
+    task.spawn(function()
+        while _G.FastAttack do
+            local Char = getCharacter()
+            local HR = Char:FindFirstChild("HumanoidRootPart")
+            local Head = Char:FindFirstChild("Head") or HR
+            if HR then
+                pcall(function() RegAttack:FireServer(0) end)
+                for _, enemy in pairs(Enemies:GetChildren()) do
+                    local enemyHum = enemy:FindFirstChild("Humanoid")
+                    local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+                    if enemyHum and enemyHRP and enemyHum.Health > 0 then
+                        pcall(function() RegHit:FireServer(HR, {{enemy, enemyHRP}}) end)
+                        pcall(function() RegHit:FireServer(Head, {{enemy, enemyHRP}}) end)
+                    end
+                end
+            end
+            wait()
+        end
+    end)
+end
 
-			-- ยิงคำสั่งโจมตี
-			RegAttack:FireServer(0)
+local function autoFarmLoop()
+    task.spawn(function()
+        while getgenv().AutoFarm do
+            local Char = getCharacter()
+            local Hum = Char:WaitForChild("HumanoidRootPart")
+            local Level = player.Data.Level.Value
 
-			local HR_arg = {HR, {}}
-			local Head_arg = {Head, {}}
+            local MON, MONPOS, QUESTPOS, QUESTNAME, QUESTNUMBER
+            
+            if Level >= 1 and Level <= 9 then
+            MON = "Bandit"; MONPOS = CFrame.new(1198.66,16.74,1618.34)
+            QUESTPOS = CFrame.new(1057.98,17.70,1550.54); QUESTNAME="BanditQuest1"; QUESTNUMBER=1
+        elseif Level >= 10 and Level <= 14 then
+            MON = "Monkey"; MONPOS = CFrame.new(-1619.10,21.70,142.14)
+            QUESTPOS = CFrame.new(-1598.08,35.55,153.37); QUESTNAME="JungleQuest"; QUESTNUMBER=1
+        elseif Level >= 15 and Level <= 29 then
+            MON = "Gorilla"; MONPOS = CFrame.new(-1135.46,40.71,-529.90)
+            QUESTPOS = CFrame.new(-1598.08,35.55,153.37); QUESTNAME="JungleQuest"; QUESTNUMBER=2
+        elseif Level >= 30 and Level <= 39 then
+            MON = "Pirate"; MONPOS = CFrame.new(-1115.55,13.52,3937.50)
+            QUESTPOS = CFrame.new(-1140.02,4.71,3829.60); QUESTNAME="BuggyQuest1"; QUESTNUMBER=1
+        elseif Level >= 40 and Level <= 59 then
+            MON = "Brute"; MONPOS = CFrame.new(-1137.80,14.86,4293.50)
+            QUESTPOS = CFrame.new(-1140.02,4.71,3829.60); QUESTNAME="BuggyQuest1"; QUESTNUMBER=2
+        elseif Level >= 60 and Level <= 74 then
+            MON = "Desert Bandit"; MONPOS = CFrame.new(932.60,7.32,4486.49)
+            QUESTPOS = CFrame.new(897.49,6.44,4388.54); QUESTNAME="DesertQuest"; QUESTNUMBER=1
+        elseif Level >= 75 and Level <= 89 then
+            MON = "Desert Officer"; MONPOS = CFrame.new(1572.10,10.39,4372.46)
+            QUESTPOS = CFrame.new(897.49,6.44,4388.54); QUESTNAME="DesertQuest"; QUESTNUMBER=2
+        elseif Level >= 90 and Level <= 99 then
+            MON = "Snow Bandit"; MONPOS = CFrame.new(1353.78,105.22,-1462.11)
+            QUESTPOS = CFrame.new(1389.91,87.27,-1297.12); QUESTNAME="SnowQuest"; QUESTNUMBER=1
+        elseif Level >= 100 and Level <= 119 then
+            MON = "Snowman"; MONPOS = CFrame.new(1189.68,105.42,-1410.17)
+            QUESTPOS = CFrame.new(1389.91,87.27,-1297.12); QUESTNAME="SnowQuest"; QUESTNUMBER=2
+        elseif Level >= 120 and Level <= 149 then
+            MON = "Chief Petty Officer"; MONPOS = CFrame.new(-4855.77,22.67,4308.97)
+            QUESTPOS = CFrame.new(-4881.28,22.65,4289.54); QUESTNAME="MarineQuest2"; QUESTNUMBER=1
+        elseif Level >= 150 and Level <= 174 then
+            MON = "Sky Bandit"; MONPOS = CFrame.new(-4981.47,278.58,-2837.20)
+            QUESTPOS = CFrame.new(-4841.42,717.67,-2622.35); QUESTNAME="SkyQuest"; QUESTNUMBER=1
+        elseif Level >= 175 and Level <= 189 then
+            MON = "Dark Master"; MONPOS = CFrame.new(-5250.72,388.57,-2272.98)
+            QUESTPOS = CFrame.new(-4841.42,717.67,-2622.35); QUESTNAME="SkyQuest"; QUESTNUMBER=2
+        elseif Level >= 190 and Level <= 209 then
+            MON = "Prisoner"; MONPOS = CFrame.new(4855.34,5.67,740.15)
+            QUESTPOS = CFrame.new(5307.86,1.67,474.65); QUESTNAME="PrisonerQuest"; QUESTNUMBER=1
+        elseif Level >= 210 and Level <= 249 then
+            MON = "Dangerous Prisoner"; MONPOS = CFrame.new(5014.35,5.67,841.21)
+            QUESTPOS = CFrame.new(5307.86,1.67,474.65); QUESTNAME="PrisonerQuest"; QUESTNUMBER=2
+        elseif Level >= 250 and Level <= 299 then
+            MON = "Toga Warrior"; MONPOS = CFrame.new(-1772.16,8.41,-2745.31)
+        end
 
-			for _, enemy in pairs(Enemies:GetChildren()) do
-				if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 then
-					local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-					if enemyHRP then
-						table.insert(HR_arg[2], {enemy, enemyHRP})
-						table.insert(Head_arg[2], {enemy, enemyHRP})
-					end
-				end
-			end
 
-			RegHit:FireServer(unpack(HR_arg))
-			RegHit:FireServer(unpack(Head_arg))
-		end)
-		task.wait() -- wait 1 frame เพื่อให้ Roblox engine ประมวลผลทัน
-	end
+            if MON then
+                local questGui = player.PlayerGui.Main.Quest
+                local questTitle = questGui.Container.QuestTitle.Title:FindFirstChild("ContantText")
+
+                if questTitle and not string.find(questTitle.Text, MON) then
+                    pcall(function() CommF_:InvokeServer("AbandonQuest") end)
+                end
+
+                if QUESTPOS and (Hum.Position - QUESTPOS.Position).Magnitude < 5 then
+                    player:LoadCharacter()
+                wait(1)
+                    Char = getCharacter()
+                    Hum = Char:WaitForChild("HumanoidRootPart")
+                end
+
+                if not questGui.Visible then
+                    Hum.CFrame = QUESTPOS
+                    task.wait(0.5)
+                    pcall(function() CommF_:InvokeServer("StartQuest", QUESTNAME, QUESTNUMBER) end)
+                    task.wait(0.5)
+                end
+
+                local closestTarget = nil
+                local minDist = math.huge
+                for _, target in pairs(Enemies:GetChildren()) do
+                    if target.Name == MON and target:FindFirstChild("Humanoid") and target.Humanoid.Health > 0 then
+                        local targetHRP = target:FindFirstChild("HumanoidRootPart")
+                        if targetHRP then
+                            local dist = (Hum.Position - targetHRP.Position).Magnitude
+                            if dist < minDist then
+                                minDist = dist
+                                closestTarget = targetHRP
+                            end
+                        end
+                    end
+                end
+
+                if closestTarget then
+                    Hum.CFrame = closestTarget.CFrame * CFrame.new(0, 15, 0)
+                    task.wait()
+                    pcall(function() RegHit:FireServer(closestTarget) end)
+                else
+                    Hum.CFrame = MONPOS
+                end
+            end
+
+            task.wait()
+        end
+    end)
+end
+
+player.CharacterAdded:Connect(function(Char)
+    Hum = Char:WaitForChild("HumanoidRootPart")
 end)
 
--- ทำงานอัตโนมัติ
-task.spawn(function()
-	while true do
-		if enabled then
-			local MyLevel = player:WaitForChild("Data"):WaitForChild("Level").Value
-			local questGUI = player:WaitForChild("PlayerGui"):WaitForChild("Main"):WaitForChild("Quest")
-
-			-- รับเควสอัตโนมัติ
-			if questGUI.Visible == false then
-				for _, data in pairs(questPositions) do
-					if MyLevel >= data.levelMin and MyLevel <= data.levelMax then
-						game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("CommF_"):InvokeServer(unpack(data.quest))
-						break
-					end
-				end
-			end
-
-			-- บินไปหา Enemy
-			if questGUI.Visible == true then
-				local enemy = findClosestEnemyByLevel(MyLevel)
-				if enemy then
-					local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-					if enemyHRP then
-						flyToTarget(enemyHRP.Position)
-					end
-				end
-			end
-		end
-		task.wait(0.5)
-	end
-end)
+fastAttackLoop()
+autoFarmLoop()
