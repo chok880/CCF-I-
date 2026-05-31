@@ -1,0 +1,1095 @@
+--[[
+	Universal AimAssist เวอร์ชันมือถือ (Rayfield UI)
+	รองรับการใช้งานบนโทรศัพท์ ปรับขนาดปุ่มให้ใหญ่ขึ้น
+	ภาษาไทยทั้งหมด
+]]
+
+-- ตรวจสอบว่า Rayfield โหลดหรือยัง
+local Rayfield = nil
+local success, result = pcall(function()
+    return loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
+end)
+
+if success and result then
+    Rayfield = result
+else
+    -- fallback ถ้า link แรกใช้งานไม่ได้
+    Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/linhmcfake/LuaLibrary/refs/heads/main/RayField.lua"))()
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local math_sin = math.sin
+local math_huge = math.huge
+local tick = tick
+local Vector2_new = Vector2.new
+local Vector3_new = Vector3.new
+local Color3_fromRGB = Color3.fromRGB
+
+-- ตัวแปรหลัก
+local hitboxSize = 10
+local hitboxEnabled = false
+local teamCheck = false
+local ogSIZES = {}
+local hbCON = {}
+local infoToggleEnabled = false
+local ignoreThroughParts = false
+local FOV_RGB_Enabled = false
+local FOV_RGB_Speed = 2
+local ESP_Name_Enabled = false
+local currentWindow = nil
+
+-- ตั้งค่าหลัก
+local AimAssistSettings = {
+    Enabled = false,
+    AimPart = "Nearest",
+    FOV = 150,
+    Sensitivity = 0.08,
+    WallCheck = true,
+    TeamCheck = true,
+    OutfitCheck = false,
+    ESP_Enabled = true,
+    ESP_LineMode = "Top",
+    ESP_Skeleton = true,
+    ESP_RGB_NoTeam = false,
+    BulletPrediction = false,
+    SkipDeadPlayers = true,
+    SmoothAiming = true,
+    ESP_Box = false,
+    ESP_AimPart = false,
+    ESP_SkipTeam = false
+}
+
+-- วงกลม FOV
+local Circle = Drawing.new("Circle")
+Circle.Color = Color3_fromRGB(255, 0, 0)
+Circle.Thickness = 3
+Circle.Filled = false
+Circle.Radius = AimAssistSettings.FOV
+Circle.Position = Vector2_new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+Circle.Visible = false
+
+-- ข้อความแสดงข้อมูล
+local InfoText = Drawing.new("Text")
+InfoText.Visible = false
+InfoText.Color = Color3_fromRGB(255,255,255)
+InfoText.Size = 26  -- ขนาดใหญ่ขึ้นสำหรับมือถือ
+InfoText.Outline = true
+InfoText.Center = true
+InfoText.Font = 3
+
+-- ระบบกลุ่ม (Team)
+local hasTeamSystem = nil
+local lastTeamCheck = 0
+local TEAM_CHECK_INTERVAL = 2
+
+local function HasTeamSystem()
+    local currentTime = tick()
+    if hasTeamSystem == nil or (currentTime - lastTeamCheck) >= TEAM_CHECK_INTERVAL then
+        lastTeamCheck = currentTime
+        hasTeamSystem = false
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Team ~= nil then
+                hasTeamSystem = true
+                break
+            end
+        end
+    end
+    return hasTeamSystem
+end
+
+-- ตรวจสอบว่าผู้เล่นยังมีชีวิตอยู่
+local function IsPlayerAlive(player)
+    if not player or not player.Character then
+        return false
+    end
+    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+    return humanoid and humanoid.Health > 0
+end
+
+-- ตรวจสอบการมองเห็น (Wall Check)
+function IsVisibleCustom(part, origin)
+    local direction = (part.Position - origin)
+    local distance = direction.Magnitude
+    if distance < 1 then return true end
+    
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+    local filterList = {LocalPlayer.Character, Camera}
+    rayParams.FilterDescendantsInstances = filterList
+    rayParams.IgnoreWater = true
+    
+    local rayDirection = direction.Unit * (distance - 0.1)
+    local result = workspace:Raycast(origin, rayDirection, rayParams)
+    
+    if not result then
+        return true
+    end
+    
+    local hitPart = result.Instance
+    if hitPart and hitPart.Parent then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.Team and LocalPlayer.Team and plr.Team == LocalPlayer.Team and plr.Character and hitPart:IsDescendantOf(plr.Character) then
+                return false
+            end
+        end
+        
+        if ignoreThroughParts and (
+            hitPart.CanCollide == false or
+            hitPart.Transparency > 0.9 or
+            (hitPart.Name == "Glass" or hitPart.Name == "Water" or hitPart.Name == "Air")
+        ) then
+            local newOrigin = result.Position + direction.Unit * 0.01
+            local newDirection = (part.Position - newOrigin)
+            if newDirection.Magnitude > 1 then
+                return IsVisibleCustom(part, newOrigin)
+            end
+        end
+        return hitPart:IsDescendantOf(part.Parent) or hitPart.Parent == part.Parent
+    end
+    return false
+end
+
+local function IsVisible(part)
+    return IsVisibleCustom(part, Camera.CFrame.Position)
+end
+
+-- หาชิ้นส่วนที่ใกล้ที่สุด
+local function GetNearestPart(character)
+    local parts = {"Head", "Torso", "HumanoidRootPart", "UpperTorso", "LowerTorso"}
+    local nearestPart, nearestDistance = nil, math_huge
+    local screenCenter = Vector2_new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, partName in ipairs(parts) do
+        local part = character:FindFirstChild(partName)
+        if part then
+            local screenPoint, onScreen = Camera:WorldToViewportPoint(part.Position)
+            if onScreen and screenPoint.Z > 0 then
+                local dist = (Vector2_new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                if dist < nearestDistance then
+                    nearestDistance = dist
+                    nearestPart = part
+                end
+            end
+        end
+    end
+    return nearestPart
+end
+
+-- หาผู้เล่นที่ใกล้ที่สุดใน FOV
+local function GetClosestPlayer()
+    local closestPlayer, closestDistance = nil, math_huge
+    local hasTeam = HasTeamSystem()
+    local screenCenter = Vector2_new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            if AimAssistSettings.SkipDeadPlayers and not IsPlayerAlive(player) then
+                continue
+            end
+            if AimAssistSettings.TeamCheck and hasTeam and player.Team == LocalPlayer.Team then 
+                continue 
+            end
+            
+            local targetPart
+            if AimAssistSettings.AimPart == "Nearest" then
+                targetPart = GetNearestPart(player.Character)
+            else
+                targetPart = player.Character:FindFirstChild(AimAssistSettings.AimPart)
+                if not targetPart then
+                    local fallbackMap = {
+                        ["Torso"] = {"Torso", "UpperTorso", "LowerTorso"},
+                        ["UpperTorso"] = {"UpperTorso", "Torso"},
+                        ["LowerTorso"] = {"LowerTorso", "Torso"},
+                        ["HumanoidRootPart"] = {"HumanoidRootPart"},
+                        ["Head"] = {"Head"}
+                    }
+                    local fallbacks = fallbackMap[AimAssistSettings.AimPart] or {AimAssistSettings.AimPart}
+                    for _, fallback in ipairs(fallbacks) do
+                        targetPart = player.Character:FindFirstChild(fallback)
+                        if targetPart then break end
+                    end
+                end
+            end
+            
+            if targetPart then
+                if AimAssistSettings.WallCheck and not IsVisible(targetPart) then 
+                    continue 
+                end
+                
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen and screenPoint.Z > 0 then
+                    local dist = (Vector2_new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                    if dist < AimAssistSettings.FOV and dist < closestDistance then
+                        closestDistance = dist
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- หาชิ้นส่วนเป้าหมาย
+local function GetTargetPart(player)
+    if not player or not player.Character then return nil end
+    
+    if AimAssistSettings.AimPart == "Nearest" then
+        return GetNearestPart(player.Character)
+    else
+        local part = player.Character:FindFirstChild(AimAssistSettings.AimPart)
+        if part then return part end
+        
+        local fallbackMap = {
+            ["Torso"] = {"Torso", "UpperTorso", "LowerTorso"},
+            ["UpperTorso"] = {"UpperTorso", "Torso"},
+            ["LowerTorso"] = {"LowerTorso", "Torso"},
+            ["HumanoidRootPart"] = {"HumanoidRootPart"},
+            ["Head"] = {"Head"}
+        }
+        
+        local fallbacks = fallbackMap[AimAssistSettings.AimPart] or {AimAssistSettings.AimPart}
+        for _, fallback in ipairs(fallbacks) do
+            part = player.Character:FindFirstChild(fallback)
+            if part then return part end
+        end
+        
+        local lastResort = {"HumanoidRootPart", "Torso", "UpperTorso", "Head"}
+        for _, fallback in ipairs(lastResort) do
+            part = player.Character:FindFirstChild(fallback)
+            if part then return part end
+        end
+    end
+    return nil
+end
+
+-- ระบบ Hitbox
+local function applyHitbox(plr)
+    if plr == LocalPlayer or not hitboxEnabled then return end
+    if teamCheck and plr.Team ~= nil and LocalPlayer.Team ~= nil and plr.Team == LocalPlayer.Team then return end
+    
+    local function updateHitbox()
+        local char = plr.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if humanoid and humanoid.Health > 0 and root then
+            if not ogSIZES[plr] then
+                ogSIZES[plr] = root.Size
+            end
+            root.Size = Vector3_new(hitboxSize, hitboxSize, hitboxSize)
+            root.Transparency = 0.7
+            root.CanCollide = false
+        end
+    end
+    
+    updateHitbox()
+    if hbCON[plr] then hbCON[plr]:Disconnect() end
+    hbCON[plr] = RunService.Heartbeat:Connect(updateHitbox)
+end
+
+local function removeHitbox(plr)
+    if hbCON[plr] then
+        hbCON[plr]:Disconnect()
+        hbCON[plr] = nil
+    end
+    local char = plr.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if root and ogSIZES[plr] then
+        root.Size = ogSIZES[plr]
+        root.Transparency = 1
+        root.CanCollide = true
+    end
+    ogSIZES[plr] = nil
+end
+
+-- ระบบสี RGB
+local function GetRGBColor(speed)
+    local currentTime = tick()
+    local time = currentTime * (speed or 2)
+    local r = math_sin(time) * 127 + 128
+    local g = math_sin(time + 2) * 127 + 128
+    local b = math_sin(time + 4) * 127 + 128
+    return Color3_fromRGB(r, g, b)
+end
+
+-- สีของผู้เล่น
+local function GetPlayerColor(player)
+    if AimAssistSettings.ESP_RGB_NoTeam and (not player.Team or player.Team == nil) then
+        return GetRGBColor()
+    end
+    if player.Team and player.TeamColor then
+        return player.TeamColor.Color
+    else
+        return Color3_fromRGB(255, 255, 255)
+    end
+end
+
+-- ตัวแปรสำหรับ ESP
+local ESP_Lines = {}
+local ESP_Skeletons = {}
+local ESP_Pool = {lines = {}, skeletons = {}}
+local ESP_Boxes = {}
+local ESP_BoxPool = {}
+local ESP_PartMarkers = {}
+local ESP_PartMarkerPool = {}
+local ESP_NameTexts = {}
+local ESP_NamePool = {}
+local screenCenter = Vector2_new(0, 0)
+local lastScreenUpdate = 0
+local SCREEN_UPDATE_INTERVAL = 1/15
+
+-- สร้างและคืนค่า ESP objects
+local function GetESPLine()
+    local line = table.remove(ESP_Pool.lines)
+    if line then
+        line.Visible = true
+        return line
+    else
+        local newLine = Drawing.new("Line")
+        newLine.Visible = true
+        newLine.Thickness = 2
+        return newLine
+    end
+end
+
+local function ReturnESPLine(line)
+    if line then
+        line.Visible = false
+        table.insert(ESP_Pool.lines, line)
+    end
+end
+
+local function ReturnESPSkeleton(skeleton)
+    if skeleton then
+        for _, line in ipairs(skeleton) do
+            ReturnESPLine(line)
+        end
+    end
+end
+
+local function GetESPBox()
+    local box = table.remove(ESP_BoxPool)
+    if box then
+        box.Visible = true
+        return box
+    else
+        local newBox = Drawing.new("Quad")
+        newBox.Visible = true
+        newBox.Thickness = 2
+        newBox.Transparency = 1
+        return newBox
+    end
+end
+
+local function ReturnESPBox(box)
+    if box then
+        box.Visible = false
+        table.insert(ESP_BoxPool, box)
+    end
+end
+
+local function GetESPCircle()
+    local circle = table.remove(ESP_PartMarkerPool)
+    if circle then
+        circle.Visible = true
+        return circle
+    else
+        local newCircle = Drawing.new("Circle")
+        newCircle.Visible = true
+        newCircle.Radius = 10
+        newCircle.Thickness = 2
+        newCircle.Filled = false
+        return newCircle
+    end
+end
+
+local function ReturnESPCircle(circle)
+    if circle then
+        circle.Visible = false
+        table.insert(ESP_PartMarkerPool, circle)
+    end
+end
+
+local function GetESPNameText()
+    local t = table.remove(ESP_NamePool)
+    if t then
+        t.Visible = true
+        return t
+    else
+        local text = Drawing.new("Text")
+        text.Visible = true
+        text.Size = 22
+        text.Outline = true
+        text.Center = true
+        text.Font = 3
+        text.Color = Color3_fromRGB(255,255,255)
+        return text
+    end
+end
+
+local function ReturnESPNameText(t)
+    if t then
+        t.Visible = false
+        table.insert(ESP_NamePool, t)
+    end
+end
+
+-- อัปเดต ESP
+local lastESPUpdate = 0
+local ESP_UPDATE_INTERVAL = 1/20
+
+local function UpdateESP()
+    local currentTime = tick()
+    if currentTime - lastESPUpdate < ESP_UPDATE_INTERVAL then return end
+    lastESPUpdate = currentTime
+    
+    -- ล้าง ESP เก่า
+    for _, line in ipairs(ESP_Lines) do ReturnESPLine(line) end
+    ESP_Lines = {}
+    for _, skeleton in ipairs(ESP_Skeletons) do ReturnESPSkeleton(skeleton) end
+    ESP_Skeletons = {}
+    for _, box in ipairs(ESP_Boxes) do ReturnESPBox(box) end
+    ESP_Boxes = {}
+    for _, circ in ipairs(ESP_PartMarkers) do ReturnESPCircle(circ) end
+    ESP_PartMarkers = {}
+    for _, t in ipairs(ESP_NameTexts) do ReturnESPNameText(t) end
+    ESP_NameTexts = {}
+    
+    local hasTeam = HasTeamSystem()
+    local viewportSize = Camera.ViewportSize
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            if AimAssistSettings.SkipDeadPlayers and not IsPlayerAlive(player) then continue end
+            if AimAssistSettings.ESP_SkipTeam and hasTeam and player.Team == LocalPlayer.Team then continue end
+            
+            local humanoidRootPart = player.Character.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(humanoidRootPart.Position)
+            
+            if onScreen and pos.Z > 0 then
+                local color = GetPlayerColor(player)
+                
+                -- ESP เส้น
+                if AimAssistSettings.ESP_Enabled then
+                    local line = GetESPLine()
+                    local fromY = AimAssistSettings.ESP_LineMode == "Top" and 0 or viewportSize.Y
+                    line.From = Vector2_new(viewportSize.X / 2, fromY)
+                    line.To = Vector2_new(pos.X, pos.Y)
+                    line.Thickness = 2
+                    line.Transparency = 1
+                    line.Color = color
+                    table.insert(ESP_Lines, line)
+                end
+                
+                -- ESP โครงกระดูก
+                if AimAssistSettings.ESP_Skeleton then
+                    local skeleton = {}
+                    local character = player.Character
+                    
+                    local function connectParts(partA, partB)
+                        local p1, v1 = character:FindFirstChild(partA), character:FindFirstChild(partB)
+                        if p1 and v1 then
+                            local pos1, os1 = Camera:WorldToViewportPoint(p1.Position)
+                            local pos2, os2 = Camera:WorldToViewportPoint(v1.Position)
+                            if os1 and os2 and pos1.Z > 0 and pos2.Z > 0 then
+                                local line = GetESPLine()
+                                line.From = Vector2_new(pos1.X, pos1.Y)
+                                line.To = Vector2_new(pos2.X, pos2.Y)
+                                line.Color = color
+                                line.Thickness = 2
+                                line.Transparency = 0.8
+                                table.insert(skeleton, line)
+                            end
+                        end
+                    end
+                    
+                    if character:FindFirstChild("UpperTorso") then
+                        connectParts("Head", "UpperTorso")
+                        connectParts("UpperTorso", "LowerTorso")
+                        connectParts("UpperTorso", "LeftUpperArm")
+                        connectParts("LeftUpperArm", "LeftLowerArm")
+                        connectParts("LeftLowerArm", "LeftHand")
+                        connectParts("UpperTorso", "RightUpperArm")
+                        connectParts("RightUpperArm", "RightLowerArm")
+                        connectParts("RightLowerArm", "RightHand")
+                        connectParts("LowerTorso", "LeftUpperLeg")
+                        connectParts("LeftUpperLeg", "LeftLowerLeg")
+                        connectParts("LeftLowerLeg", "LeftFoot")
+                        connectParts("LowerTorso", "RightUpperLeg")
+                        connectParts("RightUpperLeg", "RightLowerLeg")
+                        connectParts("RightLowerLeg", "RightFoot")
+                    else
+                        connectParts("Head", "Torso")
+                        connectParts("Torso", "Left Arm")
+                        connectParts("Torso", "Right Arm")
+                        connectParts("Torso", "Left Leg")
+                        connectParts("Torso", "Right Leg")
+                    end
+                    table.insert(ESP_Skeletons, skeleton)
+                end
+                
+                -- ESP กรอบ
+                if AimAssistSettings.ESP_Box then
+                    local min, max = Vector3.new(math.huge, math.huge, math.huge), Vector3.new(-math.huge, -math.huge, -math.huge)
+                    for _, part in ipairs(player.Character:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            min = Vector3.new(
+                                math.min(min.X, part.Position.X - part.Size.X/2),
+                                math.min(min.Y, part.Position.Y - part.Size.Y/2),
+                                math.min(min.Z, part.Position.Z - part.Size.Z/2)
+                            )
+                            max = Vector3.new(
+                                math.max(max.X, part.Position.X + part.Size.X/2),
+                                math.max(max.Y, part.Position.Y + part.Size.Y/2),
+                                math.max(max.Z, part.Position.Z + part.Size.Z/2)
+                            )
+                        end
+                    end
+                    
+                    local corners = {
+                        Vector3.new(min.X, min.Y, min.Z),
+                        Vector3.new(max.X, min.Y, min.Z),
+                        Vector3.new(max.X, max.Y, min.Z),
+                        Vector3.new(min.X, max.Y, min.Z),
+                        Vector3.new(min.X, min.Y, max.Z),
+                        Vector3.new(max.X, min.Y, max.Z),
+                        Vector3.new(max.X, max.Y, max.Z),
+                        Vector3.new(min.X, max.Y, max.Z),
+                    }
+                    
+                    local screenPoints = {}
+                    local anyVisible = false
+                    for _, v in ipairs(corners) do
+                        local p, vis = Camera:WorldToViewportPoint(v)
+                        if vis and p.Z > 0 then
+                            anyVisible = true
+                        end
+                        table.insert(screenPoints, Vector2_new(p.X, p.Y))
+                    end
+                    
+                    if anyVisible then
+                        local minX, minY, maxX, maxY = math.huge, math.huge, -math.huge, -math.huge
+                        for _, v in ipairs(screenPoints) do
+                            minX = math.min(minX, v.X)
+                            minY = math.min(minY, v.Y)
+                            maxX = math.max(maxX, v.X)
+                            maxY = math.max(maxY, v.Y)
+                        end
+                        
+                        local box = GetESPBox()
+                        box.Color = color
+                        box.PointA = Vector2_new(minX, minY)
+                        box.PointB = Vector2_new(maxX, minY)
+                        box.PointC = Vector2_new(maxX, maxY)
+                        box.PointD = Vector2_new(minX, maxY)
+                        table.insert(ESP_Boxes, box)
+                    end
+                end
+                
+                -- ESP ชื่อ
+                if ESP_Name_Enabled then
+                    local nameText = GetESPNameText()
+                    nameText.Text = player.DisplayName or player.Name
+                    nameText.Color = color
+                    
+                    local head = player.Character:FindFirstChild("Head")
+                    if head then
+                        local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position + Vector3_new(0, 1.5, 0))
+                        if headOnScreen and headPos.Z > 0 then
+                            nameText.Position = Vector2_new(headPos.X, headPos.Y - 30)
+                        else
+                            nameText.Position = Vector2_new(pos.X, pos.Y - 30)
+                        end
+                    else
+                        nameText.Position = Vector2_new(pos.X, pos.Y - 30)
+                    end
+                    nameText.Visible = true
+                    table.insert(ESP_NameTexts, nameText)
+                end
+            end
+        end
+    end
+    
+    -- ESP จุดเล็ง
+    if AimAssistSettings.ESP_AimPart and AimAssistSettings.Enabled then
+        local target = GetClosestPlayer()
+        if target then
+            local part = GetTargetPart(target)
+            if part then
+                local p, vis = Camera:WorldToViewportPoint(part.Position)
+                if vis and p.Z > 0 then
+                    local circ = GetESPCircle()
+                    circ.Position = Vector2_new(p.X, p.Y)
+                    circ.Color = Color3_fromRGB(255, 0, 0)
+                    circ.Visible = true
+                    table.insert(ESP_PartMarkers, circ)
+                end
+            end
+        end
+    end
+end
+
+-- ตัวแปรสำหรับ Aim Assist
+local lastTarget = nil
+local targetLockTime = 0
+local LOCK_DURATION = 0.3
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    local currentTime = tick()
+    
+    -- อัปเดตตำแหน่งกลางจอ
+    if currentTime - lastScreenUpdate >= SCREEN_UPDATE_INTERVAL then
+        screenCenter = Vector2_new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        lastScreenUpdate = currentTime
+    end
+    
+    -- อัปเดตวงกลม FOV
+    if FOV_RGB_Enabled then
+        Circle.Color = GetRGBColor(FOV_RGB_Speed)
+    end
+    Circle.Radius = AimAssistSettings.FOV
+    Circle.Position = screenCenter
+    Circle.Visible = AimAssistSettings.Enabled
+    
+    -- ระบบ Aim Assist
+    local currentTarget = nil
+    if AimAssistSettings.Enabled then
+        local target = GetClosestPlayer()
+        
+        if target and target == lastTarget then
+            targetLockTime = currentTime
+        elseif target and not lastTarget then
+            lastTarget = target
+            targetLockTime = currentTime
+        elseif not target and lastTarget and (currentTime - targetLockTime) < LOCK_DURATION then
+            target = lastTarget
+        else
+            lastTarget = target
+            targetLockTime = currentTime
+        end
+        
+        if target then
+            local targetPart = GetTargetPart(target)
+            if targetPart then
+                local isValid = true
+                if AimAssistSettings.SkipDeadPlayers and not IsPlayerAlive(target) then
+                    isValid = false
+                end
+                if AimAssistSettings.TeamCheck and HasTeamSystem() and target.Team == LocalPlayer.Team then
+                    isValid = false
+                end
+                if AimAssistSettings.WallCheck and not IsVisible(targetPart) then
+                    isValid = false
+                end
+                
+                local screenPoint, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                if onScreen and screenPoint.Z > 0 then
+                    local dist = (Vector2_new(screenPoint.X, screenPoint.Y) - screenCenter).Magnitude
+                    if dist > AimAssistSettings.FOV then
+                        isValid = false
+                    end
+                else
+                    isValid = false
+                end
+                
+                if isValid then
+                    local aimPos = targetPart.Position
+                    
+                    if AimAssistSettings.BulletPrediction and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                        local targetVelocity = target.Character.HumanoidRootPart.Velocity
+                        local distance = (aimPos - Camera.CFrame.Position).Magnitude
+                        local timeToTarget = distance / 800
+                        aimPos = aimPos + (targetVelocity * timeToTarget)
+                    end
+                    
+                    local dir = (aimPos - Camera.CFrame.Position).Unit
+                    local goal = CFrame.new(Camera.CFrame.Position, Camera.CFrame.Position + dir)
+                    
+                    if AimAssistSettings.SmoothAiming then
+                        Camera.CFrame = Camera.CFrame:Lerp(goal, AimAssistSettings.Sensitivity)
+                    else
+                        Camera.CFrame = goal
+                    end
+                    currentTarget = target
+                else
+                    lastTarget = nil
+                end
+            end
+        else
+            lastTarget = nil
+        end
+    else
+        lastTarget = nil
+    end
+    
+    -- แสดงข้อมูล overlay
+    if infoToggleEnabled then
+        InfoText.Visible = true
+        local str = "═══ Aim Assist ═══\n"
+        
+        local closest = GetClosestPlayer()
+        local closestName = "ไม่มี"
+        if closest then
+            closestName = closest.DisplayName or closest.Name
+        end
+        
+        local aimingPart = lastTarget and GetTargetPart(lastTarget) and GetTargetPart(lastTarget).Name or "ไม่มี"
+        local aimAssistState = AimAssistSettings.Enabled and "เปิด" or "ปิด"
+        
+        str = str .. string.format("สถานะ: %s\nเป้าหมาย: %s\nจุดเล็ง: %s\nFOV: %.0f\n", 
+            aimAssistState, closestName, aimingPart, AimAssistSettings.FOV)
+        
+        InfoText.Text = str
+        InfoText.Position = Vector2_new(screenCenter.X, 50)
+    else
+        InfoText.Visible = false
+    end
+end)
+
+-- อัปเดต ESP
+RunService.RenderStepped:Connect(UpdateESP)
+
+-- สร้าง UI (ภาษาไทยทั้งหมด) สำหรับมือถือโดยเฉพาะ
+local Window = Rayfield:CreateWindow({
+    Name = "🎯 Aim Assist มือถือ",
+    LoadingTitle = "โหลด Aim Assist",
+    LoadingSubtitle = "by linhmc_new",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "AimAssistMobile"
+    },
+    Keybind = Enum.KeyCode.RightControl,
+    AutoLoadConfig = true
+})
+
+-- ตั้งค่าขนาดใหญ่ขึ้นสำหรับมือถือ
+if Window and Window.Main then
+    -- ขยายขนาด UI (ถ้าสามารถทำได้)
+    pcall(function()
+        if Window.Main.CanvasSize then
+            Window.Main.CanvasSize = UDim2.new(0, 600, 0, 500)
+        end
+    end)
+end
+
+-- แท็บหลัก
+local MainTab = Window:CreateTab("🎯 หลัก", "crosshair")
+local HitboxTab = Window:CreateTab("📦 ฮิตบ็อกซ์", "target")
+local VisualTab = Window:CreateTab("👁️ ภาพ", "eye")
+local SettingsTab = Window:CreateTab("⚙️ ตั้งค่า", "settings")
+
+-- แท็บหลัก
+MainTab:CreateToggle({
+    Name = "🔘 เปิดใช้งาน Aim Assist",
+    CurrentValue = false,
+    Flag = "AimAssistEnabled",
+    Callback = function(value)
+        AimAssistSettings.Enabled = value
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "📊 แสดงข้อมูลบนจอ",
+    CurrentValue = false,
+    Flag = "InfoToggle",
+    Callback = function(state)
+        infoToggleEnabled = state
+    end
+})
+
+MainTab:CreateDropdown({
+    Name = "🎯 ตำแหน่งที่เล็ง",
+    Options = {"ศีรษะ", "ลำตัว", "ลำตัวบน (R15)", "ลำตัวล่าง (R15)", "HumanoidRootPart", "ใกล้ที่สุด"},
+    CurrentOption = "ใกล้ที่สุด",
+    Flag = "AimPart",
+    Callback = function(value)
+        if type(value) == "table" then
+            value = value[1]
+        end
+        local map = {
+            ["ศีรษะ"] = "Head",
+            ["ลำตัว"] = "Torso", 
+            ["ลำตัวบน (R15)"] = "UpperTorso",
+            ["ลำตัวล่าง (R15)"] = "LowerTorso",
+            ["HumanoidRootPart"] = "HumanoidRootPart",
+            ["ใกล้ที่สุด"] = "Nearest"
+        }
+        AimAssistSettings.AimPart = map[value] or "Nearest"
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "📐 ระยะ FOV (องศา)",
+    Range = {50, 400},
+    Increment = 10,
+    CurrentValue = 150,
+    Flag = "FOV",
+    Callback = function(value)
+        AimAssistSettings.FOV = value
+    end
+})
+
+MainTab:CreateSlider({
+    Name = "🎚️ ความไวในการเล็ง",
+    Range = {0.03, 0.5},
+    Increment = 0.01,
+    CurrentValue = 0.08,
+    Flag = "Sensitivity",
+    Callback = function(value)
+        AimAssistSettings.Sensitivity = value
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "🔄 เล็งแบบนุ่มนวล",
+    CurrentValue = true,
+    Flag = "SmoothAiming",
+    Callback = function(value)
+        AimAssistSettings.SmoothAiming = value
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "🎯 ทำนายกระสุน (ทดลอง)",
+    CurrentValue = false,
+    Flag = "BulletPrediction",
+    Callback = function(value)
+        AimAssistSettings.BulletPrediction = value
+    end
+})
+
+MainTab:CreateColorPicker({
+    Name = "🎨 สีวงกลม FOV",
+    Color = Color3_fromRGB(255,0,0),
+    Flag = "FOVColor",
+    Callback = function(color)
+        if not FOV_RGB_Enabled then
+            Circle.Color = color
+        end
+    end
+})
+
+MainTab:CreateToggle({
+    Name = "🌈 วงกลม FOV สีรุ้ง",
+    CurrentValue = false,
+    Flag = "FOVRainbow",
+    Callback = function(state)
+        FOV_RGB_Enabled = state
+    end
+})
+
+-- แท็บฮิตบ็อกซ์
+HitboxTab:CreateSlider({
+    Name = "📏 ขนาดฮิตบ็อกซ์",
+    Range = {1, 50},
+    Increment = 1,
+    CurrentValue = 10,
+    Flag = "HitboxSize",
+    Callback = function(value)
+        hitboxSize = value
+        if hitboxEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    removeHitbox(plr)
+                    applyHitbox(plr)
+                end
+            end
+        end
+    end
+})
+
+HitboxTab:CreateToggle({
+    Name = "✅ เปิดใช้งานฮิตบ็อกซ์",
+    CurrentValue = false,
+    Flag = "HitboxEnabled",
+    Callback = function(state)
+        hitboxEnabled = state
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then
+                if state then
+                    applyHitbox(plr)
+                else
+                    removeHitbox(plr)
+                end
+            end
+        end
+    end
+})
+
+HitboxTab:CreateToggle({
+    Name = "👥 ฮิตบ็อกซ์แยกตามทีม",
+    CurrentValue = false,
+    Flag = "HitboxTeamCheck",
+    Callback = function(state)
+        teamCheck = state
+        if hitboxEnabled then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer then
+                    removeHitbox(plr)
+                    applyHitbox(plr)
+                end
+            end
+        end
+    end
+})
+
+-- แท็บภาพ
+VisualTab:CreateParagraph({
+    Title = "🔍 ESP (ระบบมองเห็น)",
+    Content = "เปิด/ปิด การแสดงผลต่างๆ"
+})
+
+VisualTab:CreateToggle({
+    Name = "📏 ESP เส้นนำทาง",
+    CurrentValue = true,
+    Flag = "ESPLine",
+    Callback = function(value)
+        AimAssistSettings.ESP_Enabled = value
+    end
+})
+
+VisualTab:CreateDropdown({
+    Name = "📍 ตำแหน่งเส้น ESP",
+    Options = {"บนสุด", "ล่างสุด"},
+    CurrentOption = "บนสุด",
+    Flag = "ESPLinePosition",
+    Callback = function(value)
+        AimAssistSettings.ESP_LineMode = (value == "บนสุด") and "Top" or "Bottom"
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "🦴 ESP โครงกระดูก",
+    CurrentValue = true,
+    Flag = "ESPSkeleton",
+    Callback = function(value)
+        AimAssistSettings.ESP_Skeleton = value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "📦 ESP กรอบสี่เหลี่ยม",
+    CurrentValue = false,
+    Flag = "ESPBox",
+    Callback = function(value)
+        AimAssistSettings.ESP_Box = value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "🏷️ ESP ชื่อผู้เล่น",
+    CurrentValue = false,
+    Flag = "ESPName",
+    Callback = function(value)
+        ESP_Name_Enabled = value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "🎯 ESP จุดเล็ง",
+    CurrentValue = false,
+    Flag = "ESPAimPart",
+    Callback = function(value)
+        AimAssistSettings.ESP_AimPart = value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "🌈 สีรุ้งสำหรับผู้ไร้ทีม",
+    CurrentValue = false,
+    Flag = "ESPRainbow",
+    Callback = function(value)
+        AimAssistSettings.ESP_RGB_NoTeam = value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "🙈 ซ่อน ESP ทีมเดียวกัน",
+    CurrentValue = false,
+    Flag = "ESPSkipTeam",
+    Callback = function(value)
+        AimAssistSettings.ESP_SkipTeam = value
+    end
+})
+
+-- แท็บตั้งค่า
+SettingsTab:CreateToggle({
+    Name = "🧱 ตรวจสอบสิ่งกีดขวาง (Wall Check)",
+    CurrentValue = true,
+    Flag = "WallCheck",
+    Callback = function(value)
+        AimAssistSettings.WallCheck = value
+    end
+})
+
+SettingsTab:CreateToggle({
+    Name = "👥 แยกตามทีม",
+    CurrentValue = true,
+    Flag = "TeamCheck",
+    Callback = function(value)
+        AimAssistSettings.TeamCheck = value
+    end
+})
+
+SettingsTab:CreateToggle({
+    Name = "💀 ข้ามผู้เล่นที่ตายแล้ว",
+    CurrentValue = true,
+    Flag = "SkipDead",
+    Callback = function(value)
+        AimAssistSettings.SkipDeadPlayers = value
+    end
+})
+
+SettingsTab:CreateToggle({
+    Name = "🔮 ทะลุวัตถุโปร่งใส",
+    CurrentValue = false,
+    Flag = "IgnoreGlass",
+    Callback = function(value)
+        ignoreThroughParts = value
+    end
+})
+
+-- ระบบตรวจจับผู้เล่นใหม่
+Players.PlayerAdded:Connect(function(plr)
+    if plr ~= LocalPlayer then
+        plr.CharacterAdded:Connect(function()
+            task.wait(1)
+            if hitboxEnabled then
+                applyHitbox(plr)
+            end
+        end)
+    end
+end)
+
+for _, plr in pairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then
+        plr.CharacterAdded:Connect(function()
+            task.wait(1)
+            if hitboxEnabled then
+                applyHitbox(plr)
+            end
+        end)
+    end
+end
+
+-- แจ้งเตือน
+Rayfield:Notify({
+    Title = "✅ Aim Assist โหลดสำเร็จ!",
+    Content = "พร้อมใช้งานแล้ว ✅\nกด RightControl เพื่อเปิด/ปิด UI",
+    Duration = 5,
+    Image = "check-circle"
+})
+
+-- แสดงวิธีเปิด UI
+task.wait(1)
+Rayfield:Notify({
+    Title = "💡 วิธีการใช้งาน",
+    Content = "กดปุ่ม RightControl (Ctrl ขวา) เพื่อเปิด/ปิดเมนู",
+    Duration = 4,
+    Image = "info"
+})
