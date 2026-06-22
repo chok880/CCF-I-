@@ -1,0 +1,78 @@
+local player = game.Players.LocalPlayer  
+local character = player.Character or player.CharacterAdded:Wait()  
+local charHRP = character:FindFirstChild("HumanoidRootPart")  
+  
+if not charHRP then return end  
+  
+local VirtualInputManager = game:GetService("VirtualInputManager")  
+local TweenService = game:GetService("TweenService")  
+  
+local flightSpeed = 0.5  
+  
+-- ฟังก์ชันหา Enemy ที่ใกล้ที่สุดที่ยังมีเลือดอยู่  
+local function findClosestEnemy()  
+    local closestEnemy = nil  
+    local minDistance = math.huge  
+  
+    for _, enemy in ipairs(workspace.Enemies:GetChildren()) do  
+        local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")  
+        local enemyHumanoid = enemy:FindFirstChild("Humanoid")  
+  
+        if enemyHRP and enemyHumanoid and enemyHumanoid.Health > 0 then  
+            local enemyName = enemy.Name:lower()  -- ใช้ lowercase เพื่อเปรียบเทียบง่ายขึ้น  
+            if (enemyName == "bandit" or enemyName == "monkey" or string.find(enemyName, "enemy")) then  
+                local distance = (charHRP.Position - enemyHRP.Position).Magnitude  
+  
+                if distance < minDistance then  
+                    minDistance = distance  
+                    closestEnemy = enemy  
+                end  
+            end  
+        end  
+    end  
+  
+    return closestEnemy  
+end  
+  
+local function flyToTarget(targetPosition)  
+    if not charHRP then return end  
+  
+    local targetCFrame = CFrame.new(targetPosition + Vector3.new(0, 10, 0))  
+  
+    local tweenInfo = TweenInfo.new(flightSpeed, Enum.EasingStyle.Linear)  
+    local tween = TweenService:Create(charHRP, tweenInfo, {CFrame = targetCFrame})  
+    tween:Play()  
+end  
+  
+-- เริ่มการทำงานเมื่อเลเวลอยู่ในช่วง 1 ถึง 9  
+task.spawn(function()  
+    while true do  
+        local MyLevel = player:WaitForChild("Data"):WaitForChild("Level").Value  
+  
+        if MyLevel == 1 or MyLevel <= 9 then  
+            local enemy = findClosestEnemy()  
+  
+            if enemy then  
+                local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")  
+  
+                if enemyHRP then  
+                    flyToTarget(enemyHRP.Position)  
+                end  
+            end  
+        elseif MyLevel >= 10 and MyLevel <= 14 then  
+            -- ถ้าเลเวลอยู่ระหว่าง 10 ถึง 14  
+            local targetPosition = Vector3.new(1248, 12, -488)  
+            flyToTarget(targetPosition)  -- บินไปที่ตำแหน่งที่กำหนด  
+
+            -- เปลี่ยนศัตรูเป็น "Monkey"  
+            local enemy = findClosestEnemy()  
+            if enemy then  
+                if enemy.Name:lower() == "bandit" then  
+                    enemy.Name = "Monkey"  -- เปลี่ยนชื่อศัตรูเป็น "Monkey"  
+                end  
+            end  
+        end  
+  
+        task.wait(0.1)  
+    end  
+end)
